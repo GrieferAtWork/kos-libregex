@@ -25,6 +25,6 @@
 
 #include <libregex/api.h>
 
-#define CC         LIBREGEX_CC
+#define CC LIBREGEX_CC
 
 #endif /* !GUARD_LIBREGEX_API_H */
