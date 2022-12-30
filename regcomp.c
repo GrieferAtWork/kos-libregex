@@ -257,6 +257,10 @@ for (local opt: SYNTAX_OPTIONS) {
 #endif /* LIBREGEX_CONSTANT__RE_SYNTAX_NO_KOS_OPS */
 /*[[[end]]]*/
 
+/* TODO: Generic more efficient code based on `LIBREGEX_CONSTANT__*' macros.
+ *       Depending on `LIBREGEX_CONSTANT__*' macros, we're even able to get
+ *       rid of certain opcodes! */
+
 
 #ifdef _MSC_VER
 #pragma warning(disable: 4127) /* "warning C4127: conditional expression is constant" */
