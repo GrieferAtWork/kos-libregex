@@ -22,11 +22,13 @@
 
 #include "api.h"
 
+#ifndef LIBREGEX_NO_SYSTEM_INCLUDES
 #include <hybrid/compiler.h>
 
 #include <kos/types.h>
 
 #include <libregex/regexec.h>
+#endif /* !LIBREGEX_NO_SYSTEM_INCLUDES */
 
 DECL_BEGIN
 

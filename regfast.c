@@ -32,6 +32,8 @@ gcc_opt.append("-Os");
 
 #include "api.h"
 /**/
+
+#ifndef LIBREGEX_NO_SYSTEM_INCLUDES
 #include <hybrid/compiler.h>
 
 #include <hybrid/unaligned.h>
@@ -49,16 +51,20 @@ gcc_opt.append("-Os");
 
 #include <libregex/regcomp.h>
 
-#include "regexec.h"
-#include "regfast.h"
-
 #if 0
 #include <sys/syslog.h>
 #define HAVE_TRACE
 #define TRACE(...) syslog(LOG_DEBUG, __VA_ARGS__)
-#else
-#define TRACE(...) (void)0
 #endif
+#endif /* !LIBREGEX_NO_SYSTEM_INCLUDES */
+
+#include "regexec.h"
+#include "regfast.h"
+
+#ifndef TRACE
+#undef HAVE_TRACE
+#define TRACE(...) (void)0
+#endif /* !TRACE */
 
 DECL_BEGIN
 
@@ -141,9 +147,12 @@ NOTHROW_NCX(CC re_code_setminmatch)(struct re_code *__restrict self,
 }
 
 /* Map `X - RECS_ISX_MIN' to `__UNICODE_IS*' flags. */
+#ifndef __libre_unicode_traits_defined
+#define __libre_unicode_traits_defined
 INTDEF uint16_t const libre_unicode_traits[]; /* from "./regexec.c" */
+#endif /* !__libre_unicode_traits_defined */
 
-INTDEF ATTR_RETNONNULL WUNUSED NONNULL((1)) byte_t * /* from "./regcomp.c" */
+INTDEF ATTR_PURE ATTR_RETNONNULL WUNUSED NONNULL((1)) byte_t * /* from "./regcomp.c" */
 NOTHROW_NCX(CC libre_opcode_next)(byte_t const *__restrict p_instr);
 
 #define getb() (*pc++)
@@ -179,8 +188,10 @@ again:
 	switch (opcode) {
 #ifdef HAVE_TRACE
 #define TARGET(opcode) __IF0 { case opcode: TRACE("%#.4Ix: minmatch: %s [%Iu]\n", (pc - 1) - self->rc_code, #opcode, curr_minmatch); }
+#define XTARGET(range) __IF0 {       range: TRACE("%#.4Ix: minmatch: %s [%Iu]\n", (pc - 1) - self->rc_code, #range, curr_minmatch); }
 #else /* HAVE_TRACE */
 #define TARGET(opcode) case opcode:
+#define XTARGET(range) range:
 #endif /* !HAVE_TRACE */
 
 		TARGET(REOP_EXACT)
@@ -198,7 +209,7 @@ again:
 			goto again;
 		}
 
-		TARGET(REOP_ANY_MIN ... REOP_ANY_MAX) {
+		XTARGET(case_REOP_ANY_MIN_to_MAX) {
 			curr_minmatch += 1;
 			goto again;
 		}
@@ -231,7 +242,7 @@ again:
 		}
 
 		TARGET(REOP_GROUP_MATCH)
-		TARGET(REOP_GROUP_MATCH_JMIN ... REOP_GROUP_MATCH_JMAX) {
+		XTARGET(case_REOP_GROUP_MATCH_JMIN_to_JMAX) {
 			/* Not  quite correct, but we don't keep track of the minimal match length of past groups.
 			 * If we did, then we could just do `curr_minmatch += groups[gid].min_length', and move on
 			 * with  the next opcode. (including special handling for when the group was able to match
@@ -240,7 +251,7 @@ again:
 			return;
 		}
 
-		TARGET(REOP_AT_MIN ... REOP_AT_MAX)
+		XTARGET(case_REOP_AT_MIN_to_MAX)
 		TARGET(REOP_POP_ONFAIL)
 		TARGET(REOP_JMP_ONFAIL_DUMMY) {
 			goto again;
@@ -254,7 +265,7 @@ again:
 
 		TARGET(REOP_GROUP_START)
 		TARGET(REOP_GROUP_END)
-		TARGET(REOP_GROUP_END_JMIN ... REOP_GROUP_END_JMAX) {
+		XTARGET(case_REOP_GROUP_END_JMIN_to_JMAX) {
 			(void)getb(); /* gid */
 			goto again;
 		}
@@ -332,6 +343,7 @@ set_current_minmatch:
 		}
 
 	default: __builtin_unreachable();
+#undef XTARGET
 #undef TARGET
 	}
 	__builtin_unreachable();
@@ -446,7 +458,7 @@ NOTHROW_NCX(CC cs_gather_matching_bytes)(bitstr_t matchend_bytes[],
 			}
 		}	break;
 
-		case RECS_ISX_MIN ... RECS_ISX_MAX: {
+		case_RECS_ISX_MIN_to_MAX: {
 			byte_t i;
 			uint16_t traits;
 			if (!is_unicode)
@@ -503,8 +515,10 @@ again:
 	switch (opcode) {
 #ifdef HAVE_TRACE
 #define TARGET(opcode) __IF0 { case opcode: TRACE("%#.4Ix: fastmap: %s\n", (pc - 1) - self->rc_code, #opcode); }
+#define XTARGET(range) __IF0 {       range: TRACE("%#.4Ix: fastmap: %s\n", (pc - 1) - self->rc_code, #range); }
 #else /* HAVE_TRACE */
 #define TARGET(opcode) case opcode:
+#define XTARGET(range) range:
 #endif /* !HAVE_TRACE */
 #define GOTMATCH() goto got_match
 
@@ -680,14 +694,14 @@ again:
 			goto again;
 		}
 
-		TARGET(REOP_GROUP_MATCH_JMIN... REOP_GROUP_MATCH_JMAX) {
+		XTARGET(case_REOP_GROUP_MATCH_JMIN_to_JMAX) {
 			/* A super-early group match can only mean an epsilon-group,
 			 * so  we can unconditionally follow the special epsilon-jmp */
 			pc += REOP_GROUP_MATCH_Joff(opcode);
 			goto again;
 		}
 
-		TARGET(REOP_AT_MIN ... REOP_AT_MAX)
+		XTARGET(case_REOP_AT_MIN_to_MAX)
 		TARGET(REOP_JMP_ONFAIL_DUMMY)
 		TARGET(REOP_POP_ONFAIL){
 			/* Note how we don't adjust `enter_pc' here! */
@@ -708,7 +722,7 @@ again:
 			goto again;
 		}
 
-		TARGET(REOP_GROUP_END_JMIN ... REOP_GROUP_END_JMAX) {
+		XTARGET(case_REOP_GROUP_END_JMIN_to_JMAX) {
 			/* A  super-early group-end can only mean an epsilon-group,
 			 * so we can unconditionally follow the special epsilon-jmp */
 			pc += 1;
@@ -832,6 +846,9 @@ got_match:
 	}
 }
 
+#undef REQUIRE_MY_VARIABLES
+#undef getw
+#undef getb
 
 INTERN NONNULL((1)) void
 NOTHROW_NCX(CC libre_code_makefast)(struct re_code *__restrict self) {
@@ -852,6 +869,8 @@ NOTHROW_NCX(CC libre_code_makefast)(struct re_code *__restrict self) {
 }
 #endif /* !__OPTIMIZE_SIZE__ */
 
+#undef HAVE_TRACE
+#undef TRACE
 
 DECL_END
 

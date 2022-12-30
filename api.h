@@ -20,12 +20,14 @@
 #ifndef GUARD_LIBREGEX_API_H
 #define GUARD_LIBREGEX_API_H 1
 
+#ifndef LIBREGEX_NO_SYSTEM_INCLUDES
 #include <__stdinc.h>
 #include <hybrid/compiler.h>
 
 #include <kos/config/config.h> /* Pull in config-specific macro overrides */
 
 #include <libregex/api.h>
+#endif /* !LIBREGEX_NO_SYSTEM_INCLUDES */
 
 #define CC LIBREGEX_CC
 

@@ -29,6 +29,8 @@ options["COMPILE.language"] = "c";
 
 #include "api.h"
 /**/
+
+#ifndef LIBREGEX_NO_SYSTEM_INCLUDES
 #include <hybrid/compiler.h>
 
 #include <hybrid/minmax.h>
@@ -51,19 +53,23 @@ options["COMPILE.language"] = "c";
 #include <libregex/regcomp.h>
 #include <libregex/regexec.h>
 
-#include "regexec.h"
-
 #if 0
 #include <sys/syslog.h>
 #define HAVE_TRACE
 #define TRACE(...) syslog(LOG_DEBUG, __VA_ARGS__)
-#else
-#define TRACE(...) (void)0
 #endif
+#endif /* !LIBREGEX_NO_SYSTEM_INCLUDES */
+
+#include "regexec.h"
+
+#ifndef TRACE
+#undef HAVE_TRACE
+#define TRACE(...) (void)0
+#endif /* !TRACE */
 
 DECL_BEGIN
 
-#define islf(ch) ((ch) == '\r' || (ch) == '\n')
+#define ascii_islf(ch) ((ch) == '\r' || (ch) == '\n')
 
 #if !defined(NDEBUG) && !defined(NDEBUG_FINI)
 #define DBG_memset memset
@@ -77,7 +83,7 @@ DECL_BEGIN
 #define RE_ONFAILURE_ITEM_SPECIAL_CHECK(inptr)                ((uintptr_t)(inptr) <= (uintptr_t)RE_ONFAILURE_ITEM_DUMMY_INPTR)
 #define RE_ONFAILURE_ITEM_GROUP_RESTORE_CHECK(inptr)          ((uintptr_t)(inptr) < (uintptr_t)RE_ONFAILURE_ITEM_DUMMY_INPTR)
 #define RE_ONFAILURE_ITEM_GROUP_RESTORE_ISSTART(inptr)        ((uintptr_t)(inptr) & 1)
-#define RE_ONFAILURE_ITEM_GROUP_RESTORE_GETGID(inptr)         ((uintptr_t)(inptr) >> 1)
+#define RE_ONFAILURE_ITEM_GROUP_RESTORE_GETGID(inptr)         ((uint8_t)((uintptr_t)(inptr) >> 1))
 #define RE_ONFAILURE_ITEM_GROUP_RESTORE_ENCODE(is_start, gid) ((byte_t const *)(uintptr_t)(((gid) << 1) | (is_start)))
 
 struct re_onfailure_item {
@@ -91,6 +97,7 @@ struct re_onfailure_item {
 
 struct re_interpreter_inptr {
 	byte_t const       *ri_in_ptr;    /* [<= ri_in_cend] Current input pointer. */
+#ifndef LIBREGEX_REGEXEC_SINGLE_CHUNK
 	byte_t const       *ri_in_cend;   /* End of the current input chunk */
 	byte_t const       *ri_in_cbase;  /* [0..1] Original base pointer of current input IOV chunk */
 	byte_t const       *ri_in_vbase;  /* [0..1] Virtual base pointer of current input IOV chunk (such that `ri_in_ptr - ri_in_vbase'
@@ -98,6 +105,7 @@ struct re_interpreter_inptr {
 	                                   * start/end offsets stored in `ri_pmatch') */
 	struct iovec const *ri_in_miov;   /* [0..*] Further input chunks that have yet to be loaded. (current chunk originates from `ri_in_miov[-1]') */
 	size_t              ri_in_mcnt;   /* # of remaining bytes in buffers described by `ri_in_miov[*]' */
+#endif /* !LIBREGEX_REGEXEC_SINGLE_CHUNK */
 };
 
 struct re_interpreter {
@@ -105,6 +113,7 @@ struct re_interpreter {
 		struct re_interpreter_inptr ri_in;        /* Input pointer controller. */
 		struct {
 			byte_t const           *ri_in_ptr;    /* [<= ri_in_cend] Current input pointer. */
+#ifndef LIBREGEX_REGEXEC_SINGLE_CHUNK
 			byte_t const           *ri_in_cend;   /* End of the current input chunk */
 			byte_t const           *ri_in_cbase;  /* [0..1] Original base pointer of current input IOV chunk */
 			byte_t const           *ri_in_vbase;  /* [0..1] Virtual base pointer of current input IOV chunk (such that `ri_in_ptr - ri_in_vbase'
@@ -112,9 +121,17 @@ struct re_interpreter {
 			                                       * start/end offsets stored in `ri_pmatch') */
 			struct iovec const     *ri_in_miov;   /* [0..*] Further input chunks that have yet to be loaded. (current chunk originates from `ri_in_miov[-1]') */
 			size_t                  ri_in_mcnt;   /* # of remaining bytes in buffers described by `ri_in_miov[*]' */
-		};
-	};
+#endif /* !LIBREGEX_REGEXEC_SINGLE_CHUNK */
+		}; /* TODO: Support for no-transparent-struct */
+	};     /* TODO: Support for no-transparent-union */
+#ifdef LIBREGEX_REGEXEC_SINGLE_CHUNK
+#define ri_in_vbase ri_in_cbase
+	byte_t const                   *ri_in_cbase;  /* [== ri_exec->rx_inbase] */
+	byte_t const                   *ri_in_cend;   /* [== ri_exec->rx_inbase + ri_exec->rx_endoff] */
+	byte_t const                   *ri_in_vend;   /* [== ri_exec->rx_inbase + ri_exec->rx_insize] */
+#else /* LIBREGEX_REGEXEC_SINGLE_CHUNK */
 	struct iovec const             *ri_in_biov;   /* [0..*][<= ri_in_miov][const] Initial iov vector base (== `struct re_exec::rx_iov') */
+#endif /* !LIBREGEX_REGEXEC_SINGLE_CHUNK */
 	struct re_exec const           *ri_exec;      /* [1..1][const] Regex exec command block. */
 	re_regmatch_t                  *ri_pmatch;    /* [1..ri_exec->rx_code->rc_ngrps][const] Group match start/end offset register buffer (owned if caller-provided buffer is too small). */
 	struct re_onfailure_item       *ri_onfailv;   /* [0..ri_onfailc][owned(free)] On-failure stack */
@@ -127,6 +144,10 @@ struct re_interpreter {
 	COMPILER_FLEXIBLE_ARRAY(byte_t, ri_vars);     /* [ri_exec->rx_code->rc_nvars] Space for variables used by code. */
 };
 
+#ifdef LIBREGEX_REGEXEC_SINGLE_CHUNK
+#define re_interpreter_inptr_in_advance1(self)  (++(self)->ri_in_ptr)
+#define re_interpreter_inptr_in_reverse1(self)  (--(self)->ri_in_ptr)
+#else /* LIBREGEX_REGEXEC_SINGLE_CHUNK */
 #define re_interpreter_inptr_in_advance1(self)                                                           \
 	(unlikely((self)->ri_in_ptr >= (self)->ri_in_cend) ? re_interpreter_inptr_nextchunk(self) : (void)0, \
 	 ++(self)->ri_in_ptr)
@@ -138,6 +159,8 @@ struct re_interpreter {
 	 (inptr) <= re_interpreter_in_chunkend(self)) /* yes: '<=', because inptr == end-of-chunk means epsilon (in case of the last chunk) */
 #define re_interpreter_in_isfirstchunk(self)    ((self)->ri_in_miov <= (self)->ri_in_biov + 1)           /* True if in first chunk */
 #define re_interpreter_in_islastchunk(self)     ((self)->ri_in_mcnt <= 0)                                /* True if in last chunk */
+#endif /* !LIBREGEX_REGEXEC_SINGLE_CHUNK */
+
 #define re_interpreter_in_chunk_cangetc(self)   ((self)->ri_in_ptr < (self)->ri_in_cend)                 /* True if not at end of current chunk */
 #define re_interpreter_in_chunk_canungetc(self) ((self)->ri_in_ptr > (self)->ri_in_cbase)                /* True if not at start of current chunk */
 #define re_interpreter_in_chunkdone(self)       ((size_t)((self)->ri_in_ptr - (self)->ri_in_cbase))      /* Bytes already processed from current chunk */
@@ -151,20 +174,35 @@ struct re_interpreter {
 #define re_interpreter_in_totalleft(self)       (re_interpreter_in_chunkleft(self) + (self)->ri_in_mcnt) /* Total # of bytes of input left */
 #define re_interpreter_in_totalleftX(self)      (re_interpreter_in_totalleft(self) + (self)->ri_exec->rx_extra)
 
+#ifdef LIBREGEX_REGEXEC_SINGLE_CHUNK
+#define re_interpreter_in_curoffset_or_ptr(self) (self)->ri_in_ptr
+#else /* LIBREGEX_REGEXEC_SINGLE_CHUNK */
+#define re_interpreter_in_curoffset_or_ptr(self) re_interpreter_in_curoffset(self) 
+#endif /* !LIBREGEX_REGEXEC_SINGLE_CHUNK */
+
+#ifdef LIBREGEX_REGEXEC_SINGLE_CHUNK
+#define re_interpreter_is_soi(self)  ((self)->ri_in_ptr <= (self)->ri_in_vbase)
+#define re_interpreter_is_eoi(self)  ((self)->ri_in_ptr >= (self)->ri_in_cend)
+#define re_interpreter_is_eoiX(self) ((self)->ri_in_ptr >= (self)->ri_in_vend)
+#define re_interpreter_is_eoi_at_end_of_chunk re_interpreter_is_eoi
+#else /* LIBREGEX_REGEXEC_SINGLE_CHUNK */
 #define re_interpreter_is_soi(self)  ((self)->ri_in_ptr == (self)->ri_in_vbase) /* Must compare `==' in case `ri_in_vbase' had an underflow (`<' w/o underflow would already be an illegal state!) */
 #define re_interpreter_is_eoi(self)  ((self)->ri_in_ptr >= (self)->ri_in_cend && (self)->ri_in_mcnt <= 0)
 #define re_interpreter_is_eoiX(self) ((self)->ri_in_ptr >= (self)->ri_in_cend && (self)->ri_in_mcnt <= 0 && (self)->ri_exec->rx_extra <= 0)
-
 #define re_interpreter_is_eoi_at_end_of_chunk(self) ((self)->ri_in_mcnt <= 0)
+#endif /* !LIBREGEX_REGEXEC_SINGLE_CHUNK */
 
 static_assert(offsetof(struct re_interpreter_inptr, ri_in_ptr) == offsetof(struct re_interpreter_inptr, ri_in_ptr));
+#ifndef LIBREGEX_REGEXEC_SINGLE_CHUNK
 static_assert(offsetof(struct re_interpreter_inptr, ri_in_cend) == offsetof(struct re_interpreter_inptr, ri_in_cend));
 static_assert(offsetof(struct re_interpreter_inptr, ri_in_cbase) == offsetof(struct re_interpreter_inptr, ri_in_cbase));
 static_assert(offsetof(struct re_interpreter_inptr, ri_in_vbase) == offsetof(struct re_interpreter_inptr, ri_in_vbase));
 static_assert(offsetof(struct re_interpreter_inptr, ri_in_miov) == offsetof(struct re_interpreter_inptr, ri_in_miov));
 static_assert(offsetof(struct re_interpreter_inptr, ri_in_mcnt) == offsetof(struct re_interpreter_inptr, ri_in_mcnt));
+#endif /* !LIBREGEX_REGEXEC_SINGLE_CHUNK */
 
 /* Load the next chunk into `self' */
+#ifndef LIBREGEX_REGEXEC_SINGLE_CHUNK
 #define re_interpreter_nextchunk(self) \
 	re_interpreter_inptr_nextchunk(&(self)->ri_in)
 PRIVATE NONNULL((1)) void
@@ -185,8 +223,10 @@ NOTHROW_NCX(CC re_interpreter_inptr_nextchunk)(struct re_interpreter_inptr *__re
 	self->ri_in_cbase = (byte_t const *)nextchunk.iov_base;
 	self->ri_in_vbase = (byte_t const *)nextchunk.iov_base - old_chunk_endoffset;
 }
+#endif /* !LIBREGEX_REGEXEC_SINGLE_CHUNK */
 
 /* Load the previous chunk into `self' */
+#ifndef LIBREGEX_REGEXEC_SINGLE_CHUNK
 #define re_interpreter_prevchunk(self) \
 	re_interpreter_inptr_prevchunk(&(self)->ri_in)
 PRIVATE NONNULL((1)) void
@@ -206,7 +246,12 @@ NOTHROW_NCX(CC re_interpreter_inptr_prevchunk)(struct re_interpreter_inptr *__re
 	self->ri_in_cbase = (byte_t const *)prevchunk.iov_base;
 	self->ri_in_vbase = (byte_t const *)prevchunk.iov_base - new_chunk_startoffset;
 }
+#endif /* !LIBREGEX_REGEXEC_SINGLE_CHUNK */
 
+#ifdef LIBREGEX_REGEXEC_SINGLE_CHUNK
+#define re_interpreter_advance(self, num_bytes)       (void)((self)->ri_in_ptr += (num_bytes))
+#define re_interpreter_inptr_advance(self, num_bytes) (void)((self)->ri_in_ptr += (num_bytes))
+#else /* LIBREGEX_REGEXEC_SINGLE_CHUNK */
 #define re_interpreter_advance(self, num_bytes) \
 	re_interpreter_inptr_advance(&(self)->ri_in, num_bytes)
 PRIVATE NONNULL((1)) void
@@ -221,7 +266,12 @@ again:
 		goto again;
 	}
 }
+#endif /* !LIBREGEX_REGEXEC_SINGLE_CHUNK */
 
+#ifdef LIBREGEX_REGEXEC_SINGLE_CHUNK
+#define re_interpreter_reverse(self, num_bytes)       (void)((self)->ri_in_ptr -= (num_bytes))
+#define re_interpreter_inptr_reverse(self, num_bytes) (void)((self)->ri_in_ptr -= (num_bytes))
+#else /* LIBREGEX_REGEXEC_SINGLE_CHUNK */
 #define re_interpreter_reverse(self, num_bytes) \
 	re_interpreter_inptr_reverse(&(self)->ri_in, num_bytes)
 PRIVATE NONNULL((1)) void
@@ -236,9 +286,14 @@ again:
 		goto again;
 	}
 }
+#endif /* !LIBREGEX_REGEXEC_SINGLE_CHUNK */
 
 
 /* Return the previous byte from input */
+#ifdef LIBREGEX_REGEXEC_SINGLE_CHUNK
+#define re_interpreter_prevbyte(self)       (self)->ri_in_ptr[-1]
+#define re_interpreter_inptr_prevbyte(self) (self)->ri_in_ptr[-1]
+#else /* LIBREGEX_REGEXEC_SINGLE_CHUNK */
 #define re_interpreter_prevbyte(self) \
 	(likely(re_interpreter_in_chunk_canungetc(self)) ? (self)->ri_in_ptr[-1] : _re_interpreter_inptr_prevbyte(&(self)->ri_in))
 #define re_interpreter_inptr_prevbyte(self) \
@@ -251,8 +306,13 @@ NOTHROW_NCX(CC _re_interpreter_inptr_prevbyte)(struct re_interpreter_inptr const
 		--iov; /* Skip over empty chunks */
 	return ((byte_t const *)iov->iov_base)[iov->iov_len - 1];
 }
+#endif /* !LIBREGEX_REGEXEC_SINGLE_CHUNK */
 
 /* Return the next byte that will be read from input */
+#ifdef LIBREGEX_REGEXEC_SINGLE_CHUNK
+#define re_interpreter_nextbyte(self)       (*(self)->ri_in_ptr)
+#define re_interpreter_inptr_nextbyte(self) (*(self)->ri_in_ptr)
+#else /* LIBREGEX_REGEXEC_SINGLE_CHUNK */
 #define re_interpreter_nextbyte(self) \
 	(likely(re_interpreter_in_chunk_cangetc(self)) ? *(self)->ri_in_ptr : _re_interpreter_inptr_nextbyte(&(self)->ri_in))
 #define re_interpreter_inptr_nextbyte(self) \
@@ -267,8 +327,10 @@ NOTHROW_NCX(CC _re_interpreter_inptr_nextbyte)(struct re_interpreter_inptr const
 		++iov; /* Skip over empty chunks */
 	return *(byte_t const *)iov->iov_base;
 }
+#endif /* !LIBREGEX_REGEXEC_SINGLE_CHUNK */
 
 /* Peek memory that has been read in the past, copying up to `max_bytes' bytes of it into `buf'. */
+#ifndef LIBREGEX_REGEXEC_SINGLE_CHUNK
 PRIVATE WUNUSED NONNULL((1)) size_t
 NOTHROW_NCX(CC re_interpreter_peekmem_bck)(struct re_interpreter const *__restrict self,
                                            void *buf, size_t max_bytes) {
@@ -300,9 +362,11 @@ NOTHROW_NCX(CC re_interpreter_peekmem_bck)(struct re_interpreter const *__restri
 		memmovedown(dst, buf, max_bytes);
 	return result;
 }
+#endif /* !LIBREGEX_REGEXEC_SINGLE_CHUNK */
 
 /* Peek memory that will be read in the future, copying up to `max_bytes' bytes of it into `buf'.
  * NOTE: This function also allows access to trailing `rx_extra' extra bytes. */
+#ifndef LIBREGEX_REGEXEC_SINGLE_CHUNK
 PRIVATE WUNUSED NONNULL((1)) size_t
 NOTHROW_NCX(CC re_interpreter_peekmem_fwd)(struct re_interpreter const *__restrict self,
                                            void *buf, size_t max_bytes) {
@@ -329,6 +393,7 @@ NOTHROW_NCX(CC re_interpreter_peekmem_fwd)(struct re_interpreter const *__restri
 	}
 	return result;
 }
+#endif /* !LIBREGEX_REGEXEC_SINGLE_CHUNK */
 
 /* Return the previous utf-8 character from input */
 PRIVATE WUNUSED NONNULL((1)) char32_t
@@ -344,13 +409,17 @@ NOTHROW_NCX(CC re_interpreter_prevutf8)(struct re_interpreter const *__restrict 
 		}
 	}
 
-	if likely(re_interpreter_in_isfirstchunk(self)) {
+#ifndef LIBREGEX_REGEXEC_SINGLE_CHUNK
+	if likely(re_interpreter_in_isfirstchunk(self))
+#endif /* !LIBREGEX_REGEXEC_SINGLE_CHUNK */
+	{
 		/* First chunk -> just read a restricted-length unicode character */
 		char const *reader = (char const *)self->ri_in_ptr;
 		assert(reader > (char const *)self->ri_in_cbase);
 		return unicode_readutf8_rev_n(&reader, (char const *)self->ri_in_cbase);
 	}
 
+#ifndef LIBREGEX_REGEXEC_SINGLE_CHUNK
 	/* Fallback: copy memory into a temporary buffer. */
 	{
 		size_t utf8_len;
@@ -360,6 +429,7 @@ NOTHROW_NCX(CC re_interpreter_prevutf8)(struct re_interpreter const *__restrict 
 		assert(utf8_len != 0);
 		return unicode_readutf8_rev_n((char const **)&reader, utf8);
 	}
+#endif /* !LIBREGEX_REGEXEC_SINGLE_CHUNK */
 }
 
 /* Return the next utf-8 character that will be read from input */
@@ -380,13 +450,17 @@ NOTHROW_NCX(CC re_interpreter_nextutf8)(struct re_interpreter const *__restrict 
 		}
 	}
 
-	if likely(re_interpreter_in_islastchunk(self)) {
+#ifndef LIBREGEX_REGEXEC_SINGLE_CHUNK
+	if likely(re_interpreter_in_islastchunk(self))
+#endif /* !LIBREGEX_REGEXEC_SINGLE_CHUNK */
+	{
 		/* Last chunk -> just read a restricted-length unicode character */
 		char const *reader = (char const *)self->ri_in_ptr;
 		assert(reader < (char const *)self->ri_in_cend);
 		return unicode_readutf8_n(&reader, (char const *)self->ri_in_cend);
 	}
 
+#ifndef LIBREGEX_REGEXEC_SINGLE_CHUNK
 	/* Fallback: copy memory into a temporary buffer. */
 	{
 		size_t utf8_len;
@@ -396,77 +470,85 @@ NOTHROW_NCX(CC re_interpreter_nextutf8)(struct re_interpreter const *__restrict 
 		assert(utf8_len != 0);
 		return unicode_readutf8_n((char const **)&reader, utf8 + utf8_len);
 	}
+#endif /* !LIBREGEX_REGEXEC_SINGLE_CHUNK */
 }
 
 
 /* Read a byte whilst advancing the input pointer. */
+#ifdef LIBREGEX_REGEXEC_SINGLE_CHUNK
+#define re_interpreter_readbyte(self)       (*(self)->ri_in_ptr++)
+#define re_interpreter_inptr_readbyte(self) (*(self)->ri_in_ptr++)
+#else /* LIBREGEX_REGEXEC_SINGLE_CHUNK */
 #define re_interpreter_readbyte(self)                                                              \
 	(unlikely((self)->ri_in_ptr >= (self)->ri_in_cend) ? re_interpreter_nextchunk(self) : (void)0, \
 	 *(self)->ri_in_ptr++)
 #define re_interpreter_inptr_readbyte(self)                                                              \
 	(unlikely((self)->ri_in_ptr >= (self)->ri_in_cend) ? re_interpreter_inptr_nextchunk(self) : (void)0, \
 	 *(self)->ri_in_ptr++)
+#endif /* !LIBREGEX_REGEXEC_SINGLE_CHUNK */
 
 /* Read a utf-8 character whilst advancing the input pointer. */
-#define re_interpreter_readutf8(self) re_interpreter_inptr_readutf8(&(self)->ri_in)
+#ifdef LIBREGEX_REGEXEC_SINGLE_CHUNK
+#define re_interpreter_readutf8(self) \
+	unicode_readutf8_n((char const **)&(self)->ri_in_ptr, (char const *)(self)->ri_in_cend)
+#else /* LIBREGEX_REGEXEC_SINGLE_CHUNK */
 PRIVATE NONNULL((1)) char32_t
-NOTHROW_NCX(CC re_interpreter_inptr_readutf8)(struct re_interpreter_inptr *__restrict self) {
-again:
-	if likely(re_interpreter_in_chunk_cangetc(self)) {
-		uint8_t seqlen;
-		byte_t nextbyte = *self->ri_in_ptr;
-		if likely(nextbyte < 0x80) {
-			++self->ri_in_ptr;
-			return nextbyte;
-		}
-		seqlen = unicode_utf8seqlen[nextbyte];
-		if unlikely(!seqlen) {
-			++self->ri_in_ptr;
-			return nextbyte; /* Dangling follow-up byte? */
-		}
-		if likely((self->ri_in_ptr + seqlen) <= self->ri_in_cend) {
-			/* Can just read the entire character from the current chunk */
-			return unicode_readutf8((char const **)&self->ri_in_ptr);
-		}
-		if likely(re_interpreter_in_islastchunk(self)) {
-			/* Last chunk -> just read a restricted-length unicode character */
-			assert((char const *)self->ri_in_ptr < (char const *)self->ri_in_cend);
-			return unicode_readutf8_n((char const **)&self->ri_in_ptr, (char const *)self->ri_in_cend);
-		}
+NOTHROW_NCX(CC re_interpreter_readutf8)(struct re_interpreter *__restrict self) {
+	uint8_t seqlen;
+	byte_t nextbyte;
+	if unlikely(!re_interpreter_in_chunk_cangetc(self))
+		re_interpreter_inptr_nextchunk(&self->ri_in);
 
-		/* Unicode character is spread across multiple chunks */
-		{
-			size_t firstchunk, missing, left;
-			char utf8[UNICODE_UTF8_MAXLEN], *dst, *reader;
-			firstchunk = re_interpreter_in_chunkleft(self);
-			assert(seqlen > firstchunk);
-			dst     = (char *)mempcpy(utf8, self->ri_in_ptr, firstchunk);
-			missing = seqlen - firstchunk;
-			re_interpreter_inptr_nextchunk(self);
-			left = re_interpreter_in_totalleft(self);
-			if (missing > left)
-				missing = left;
-			if (missing) {
-				for (;;) {
-					size_t avail = re_interpreter_in_chunkleft(self);
-					if (avail > missing)
-						avail = missing;
-					dst = (char *)mempcpy(dst, self->ri_in_ptr, avail);
-					missing -= avail;
-					self->ri_in_ptr += avail;
-					if (!missing)
-						break;
-					re_interpreter_inptr_nextchunk(self);
-				}
+	nextbyte = *self->ri_in_ptr;
+	if likely(nextbyte < 0x80) {
+		++self->ri_in_ptr;
+		return nextbyte;
+	}
+	seqlen = unicode_utf8seqlen[nextbyte];
+	if unlikely(!seqlen) {
+		++self->ri_in_ptr;
+		return nextbyte; /* Dangling follow-up byte? */
+	}
+	if likely((self->ri_in_ptr + seqlen) <= self->ri_in_cend) {
+		/* Can just read the entire character from the current chunk */
+		return unicode_readutf8((char const **)&self->ri_in_ptr);
+	}
+	if likely(re_interpreter_in_islastchunk(self)) {
+		/* Last chunk -> just read a restricted-length unicode character */
+		assert((char const *)self->ri_in_ptr < (char const *)self->ri_in_cend);
+		return unicode_readutf8_n((char const **)&self->ri_in_ptr, (char const *)self->ri_in_cend);
+	}
+
+	/* Unicode character is spread across multiple chunks */
+	{
+		size_t firstchunk, missing, left;
+		char utf8[UNICODE_UTF8_MAXLEN], *dst, *reader;
+		firstchunk = re_interpreter_in_chunkleft(self);
+		assert(seqlen > firstchunk);
+		dst     = (char *)mempcpy(utf8, self->ri_in_ptr, firstchunk);
+		missing = seqlen - firstchunk;
+		re_interpreter_inptr_nextchunk(&self->ri_in);
+		left = re_interpreter_in_totalleft(self);
+		if (missing > left)
+			missing = left;
+		if (missing) {
+			for (;;) {
+				size_t avail = re_interpreter_in_chunkleft(self);
+				if (avail > missing)
+					avail = missing;
+				dst = (char *)mempcpy(dst, self->ri_in_ptr, avail);
+				missing -= avail;
+				self->ri_in_ptr += avail;
+				if (!missing)
+					break;
+				re_interpreter_inptr_nextchunk(&self->ri_in);
 			}
-			reader = utf8;
-			return unicode_readutf8_n((char const **)&reader, dst);
 		}
-	} else {
-		re_interpreter_inptr_nextchunk(self);
-		goto again;
+		reader = utf8;
+		return unicode_readutf8_n((char const **)&reader, dst);
 	}
 }
+#endif /* !LIBREGEX_REGEXEC_SINGLE_CHUNK */
 
 
 
@@ -475,6 +557,9 @@ again:
  * load said chunk and set the input pointer of `self' to  `inptr'.
  *
  * Behavior is undefined when `inptr' isn't a valid input pointer. */
+#ifdef LIBREGEX_REGEXEC_SINGLE_CHUNK
+#define re_interpreter_setinptr(self, inptr) (void)((self)->ri_in_ptr = (inptr))
+#else /* LIBREGEX_REGEXEC_SINGLE_CHUNK */
 PRIVATE NONNULL((1, 2)) void
 NOTHROW_NCX(CC re_interpreter_setinptr)(struct re_interpreter *__restrict self,
                                         byte_t const *inptr) {
@@ -517,8 +602,10 @@ NOTHROW_NCX(CC re_interpreter_setinptr)(struct re_interpreter *__restrict self,
 		self->ri_in_ptr = inptr;
 	}
 }
+#endif /* !LIBREGEX_REGEXEC_SINGLE_CHUNK */
 
 /* Set the absolute offset of `self' */
+#ifndef LIBREGEX_REGEXEC_SINGLE_CHUNK
 PRIVATE NONNULL((1)) void
 NOTHROW_NCX(CC re_interpreter_inptr_setoffset)(struct re_interpreter_inptr *__restrict self,
                                                size_t offset) {
@@ -543,6 +630,7 @@ NOTHROW_NCX(CC re_interpreter_inptr_setoffset)(struct re_interpreter_inptr *__re
 		}
 	}
 }
+#endif /* !LIBREGEX_REGEXEC_SINGLE_CHUNK */
 
 
 
@@ -555,11 +643,29 @@ NOTHROW_NCX(CC re_interpreter_inptr_setoffset)(struct re_interpreter_inptr *__re
 PRIVATE WUNUSED NONNULL((1, 2)) re_errno_t
 NOTHROW_NCX(CC re_interpreter_init)(struct re_interpreter *__restrict self,
                                     struct re_exec const *__restrict exec) {
+#ifndef LIBREGEX_REGEXEC_SINGLE_CHUNK
+	size_t chunkoff = 0;
 	size_t in_len;
 	struct iovec const *iov = exec->rx_iov;
-	size_t startoff         = exec->rx_startoff;
-	size_t endoff           = exec->rx_endoff;
-	size_t chunkoff         = 0;
+#endif /* !LIBREGEX_REGEXEC_SINGLE_CHUNK */
+	size_t startoff = exec->rx_startoff;
+	size_t endoff   = exec->rx_endoff;
+#ifdef LIBREGEX_REGEXEC_SINGLE_CHUNK
+	self->ri_in_cbase = (byte_t const *)exec->rx_inbase;
+	self->ri_in_cend  = (byte_t const *)exec->rx_inbase + endoff;
+	if unlikely(startoff >= endoff) {
+		if (endoff < exec->rx_insize) {
+			startoff = endoff;
+			goto load_normal_input;
+		}
+		startoff          = 0;
+		endoff            = 0;
+		self->ri_in_cbase = NULL;
+		self->ri_in_cend  = NULL;
+	}
+load_normal_input:
+	assert(endoff <= exec->rx_insize);
+#else /* LIBREGEX_REGEXEC_SINGLE_CHUNK */
 	if unlikely(startoff >= endoff) {
 		static struct iovec const empty_iov = { NULL, 0 };
 		/* Special case: input buffer is epsilon. */
@@ -580,8 +686,14 @@ load_normal_iov:
 			++iov;
 		}
 	}
+#endif /* !LIBREGEX_REGEXEC_SINGLE_CHUNK */
 
 	/* Fill in interpreter fields */
+	assert(startoff <= endoff);
+#ifdef LIBREGEX_REGEXEC_SINGLE_CHUNK
+	self->ri_in_ptr  = self->ri_in_cbase + startoff;
+	self->ri_in_vend = self->ri_in_cbase + exec->rx_insize;
+#else /* LIBREGEX_REGEXEC_SINGLE_CHUNK */
 	self->ri_in_ptr   = (byte_t const *)iov->iov_base + startoff;
 	in_len            = iov->iov_len - startoff;
 	self->ri_in_cend  = self->ri_in_ptr + in_len;
@@ -598,6 +710,7 @@ load_normal_iov:
 		self->ri_in_cend = self->ri_in_ptr + in_len;
 		self->ri_in_mcnt = 0;
 	}
+#endif /* !LIBREGEX_REGEXEC_SINGLE_CHUNK */
 	self->ri_exec    = exec;
 	self->ri_onfailv = NULL;
 	self->ri_onfailc = 0;
@@ -634,10 +747,10 @@ load_normal_iov:
 	do {                                                                      \
 		if ((self)->ri_pmatch != (self)->ri_exec->rx_pmatch) {                \
 			/* Must copy over match information into user-provided buffer. */ \
-			memcpy((self)->ri_exec->rx_pmatch,                                \
-			       (self)->ri_pmatch,                                         \
-			       (self)->ri_exec->rx_nmatch,                                \
-			       sizeof(re_regmatch_t));                                    \
+			memcpyc((self)->ri_exec->rx_pmatch,                               \
+			        (self)->ri_pmatch,                                        \
+			        (self)->ri_exec->rx_nmatch,                               \
+			        sizeof(re_regmatch_t));                                   \
 		}                                                                     \
 	}	__WHILE0
 
@@ -648,6 +761,9 @@ load_normal_iov:
  * even look at `re_max_failures(3)' */
 #define RE_MIN_FAILURES 128
 
+#ifdef LIBREGEX_USED__re_max_failures
+#define get_re_max_failures() LIBREGEX_USED__re_max_failures
+#else /* LIBREGEX_USED__re_max_failures */
 /* This one has to be int-sized for Glibc-compat. Technically, Glibc
  * defines this one as  `int', there's no need  to do that; we  just
  * interpret the variable as unsigned int!
@@ -668,6 +784,7 @@ NOTHROW(CC get_re_max_failures)(void) {
 	}
 	return (size_t)*pdyn_re_max_failures;
 }
+#endif /* !LIBREGEX_USED__re_max_failures */
 
 PRIVATE WUNUSED NONNULL((1)) bool
 NOTHROW_NCX(CC re_interpreter_resize)(struct re_interpreter *__restrict self) {
@@ -683,19 +800,21 @@ NOTHROW_NCX(CC re_interpreter_resize)(struct re_interpreter *__restrict self) {
 		size_t max_count = get_re_max_failures();
 		if (new_onfail_a > max_count) {
 			new_onfail_a = max_count;
+#ifndef LIBREGEX_USED__re_max_failures
 			if (new_onfail_a < RE_MIN_FAILURES)
-				new_onfail_a = RE_MIN_FAILURES; /* Never go  */
+				new_onfail_a = RE_MIN_FAILURES; /* Never go below the minimum */
+#endif /* !LIBREGEX_USED__re_max_failures */
 			if (self->ri_onfailc >= new_onfail_a)
 				return false; /* New limit is too low for current requirements. */
 		}
 	}
 
-	new_onfail_v = (struct re_onfailure_item *)realloc(self->ri_onfailv, new_onfail_a,
-	                                                   sizeof(struct re_onfailure_item));
+	new_onfail_v = (struct re_onfailure_item *)reallocv(self->ri_onfailv, new_onfail_a,
+	                                                    sizeof(struct re_onfailure_item));
 	if unlikely(!new_onfail_v) {
 		new_onfail_a = self->ri_onfailc + 1;
-		new_onfail_v = (struct re_onfailure_item *)realloc(self->ri_onfailv, new_onfail_a,
-		                                                   sizeof(struct re_onfailure_item));
+		new_onfail_v = (struct re_onfailure_item *)reallocv(self->ri_onfailv, new_onfail_a,
+		                                                    sizeof(struct re_onfailure_item));
 		if unlikely(!new_onfail_v)
 			return false; /* Out-of-memory :( */
 	}
@@ -745,6 +864,15 @@ NOTHROW_NCX(CC re_interpreter_pushfail_dummy)(struct re_interpreter *__restrict 
 PRIVATE WUNUSED NONNULL((1)) bool
 NOTHROW_NCX(CC re_interpreter_consume_repeat)(struct re_interpreter *__restrict self,
                                               re_regoff_t offset, size_t num_bytes) {
+#ifdef LIBREGEX_REGEXEC_SINGLE_CHUNK
+	assert(num_bytes > 0);
+	if unlikely(re_interpreter_in_chunkleft(self) < num_bytes)
+		return false;
+	if (bcmp(self->ri_in_cbase + offset, self->ri_in_ptr, num_bytes) != 0)
+		return false;
+	re_interpreter_advance(self, num_bytes);
+	return true;
+#else /* LIBREGEX_REGEXEC_SINGLE_CHUNK */
 	struct re_interpreter_inptr srcptr;
 	assert(num_bytes > 0);
 	srcptr = self->ri_in;
@@ -773,12 +901,18 @@ NOTHROW_NCX(CC re_interpreter_consume_repeat)(struct re_interpreter *__restrict 
 		self->ri_in_ptr += com_bytes;
 	}
 	return true;
+#endif /* !LIBREGEX_REGEXEC_SINGLE_CHUNK */
 }
 
 
 /* Map `X - RECS_ISX_MIN' to `__UNICODE_IS*' flags. */
+#define __libre_unicode_traits_defined
 INTERN_CONST uint16_t const libre_unicode_traits[] = {
+#ifdef __GNUC__
 #define DEF_TRAIT(opcode, mask) [(opcode - RECS_ISX_MIN)] = mask
+#else /* __GNUC__ */
+#define DEF_TRAIT(opcode, mask) /*[(opcode - RECS_ISX_MIN)] =*/ mask
+#endif /* !__GNUC__ */
 	DEF_TRAIT(RECS_ISCNTRL, __UNICODE_ISCNTRL),     /* `unicode_iscntrl(ch)' */
 	DEF_TRAIT(RECS_ISSPACE, __UNICODE_ISSPACE),     /* `unicode_isspace(ch)' */
 	DEF_TRAIT(RECS_ISUPPER, __UNICODE_ISUPPER),     /* `unicode_isupper(ch)' */
@@ -810,7 +944,7 @@ again:
 	cs_opcode = *pc++;
 	switch (cs_opcode) {
 
-	case RECS_BITSET_MIN ... RECS_BITSET_MAX_BYTE:
+	case_RECS_BITSET_MIN_to_MAX_BYTE:
 		pc += RECS_BITSET_GETBYTES(cs_opcode);
 		goto again;
 
@@ -847,7 +981,7 @@ again:
 	cs_opcode = *pc++;
 	switch (cs_opcode) {
 
-	case RECS_BITSET_MIN ... RECS_BITSET_MAX_UTF8:
+	case_RECS_BITSET_MIN_to_MAX_UTF8:
 		pc += RECS_BITSET_GETBYTES(cs_opcode);
 		goto again;
 
@@ -874,7 +1008,7 @@ again:
 		goto again;
 	}
 
-	case RECS_ISX_MIN ... RECS_ISX_MAX:
+	case_RECS_ISX_MIN_to_MAX:
 		goto again;
 
 	default: __builtin_unreachable();
@@ -982,18 +1116,25 @@ do_epsilon_match:
 	}
 
 	/* Initialize the best match as not-matched-yet */
+#ifdef LIBREGEX_REGEXEC_SINGLE_CHUNK
+	self->ri_bmatch.ri_in_ptr = NULL;
+#define best_match_isvalid() (self->ri_bmatch.ri_in_ptr != NULL)
+#else /* LIBREGEX_REGEXEC_SINGLE_CHUNK */
 	self->ri_bmatch.ri_in_ptr  = (byte_t *)1;
 	self->ri_bmatch.ri_in_cend = (byte_t *)0;
 #define best_match_isvalid() (self->ri_bmatch.ri_in_ptr <= self->ri_bmatch.ri_in_cend)
+#endif /* !LIBREGEX_REGEXEC_SINGLE_CHUNK */
 
 	/* Helper macros */
 #define DISPATCH()     goto dispatch
 #ifdef HAVE_TRACE
 #define ONFAIL()       do{ TRACE("ONFAIL: %d\n", __LINE__); goto onfail; }__WHILE0
 #define TARGET(opcode) __IF0 { case opcode: TRACE("%#.4" PRIxSIZ ": %s\n", (size-t)((pc - 1) - self->ri_exec->rx_code->rc_code), #opcode); }
+#define XTARGET(range) __IF0 {       range: TRACE("%#.4" PRIxSIZ ": %s\n", (size-t)((pc - 1) - self->ri_exec->rx_code->rc_code), #opcode); }
 #else /* HAVE_TRACE */
 #define ONFAIL()       goto onfail
 #define TARGET(opcode) case opcode:
+#define XTARGET(range) range:
 #endif /* !HAVE_TRACE */
 #define PUSHFAIL(pc)        do { if unlikely(!re_interpreter_pushfail(self, pc)) goto err_nomem; } __WHILE0
 #define PUSHFAIL_DUMMY(pc)  do { if unlikely(!re_interpreter_pushfail_dummy(self, RE_ONFAILURE_ITEM_DUMMY_INPTR, pc)) goto err_nomem; } __WHILE0
@@ -1009,6 +1150,17 @@ dispatch:
 		TARGET(REOP_EXACT) {
 			byte_t count = getb();
 			assert(count >= 2);
+#ifdef LIBREGEX_REGEXEC_SINGLE_CHUNK
+			{
+				size_t avail = re_interpreter_in_chunkleft(self);
+				if (avail < (size_t)count)
+					ONFAIL();
+				if (bcmp(self->ri_in_ptr, pc, count) != 0)
+					ONFAIL();
+				self->ri_in_ptr += count;
+				pc += count;
+			}
+#else /* LIBREGEX_REGEXEC_SINGLE_CHUNK */
 			for (;;) {
 				size_t avail = re_interpreter_in_chunkleft(self);
 				if (avail == 0) {
@@ -1034,12 +1186,24 @@ dispatch:
 					count -= avail;
 				}
 			}
+#endif /* !LIBREGEX_REGEXEC_SINGLE_CHUNK */
 			DISPATCH();
 		}
 
 		TARGET(REOP_EXACT_ASCII_ICASE) {
 			byte_t count = getb();
 			assert(count >= 2);
+#ifdef LIBREGEX_REGEXEC_SINGLE_CHUNK
+			{
+				size_t avail = re_interpreter_in_chunkleft(self);
+				if (avail < (size_t)count)
+					ONFAIL();
+				if (memcasecmp(self->ri_in_ptr, pc, count) != 0)
+					ONFAIL();
+				self->ri_in_ptr += count;
+				pc += count;
+			}
+#else /* LIBREGEX_REGEXEC_SINGLE_CHUNK */
 			for (;;) {
 				size_t avail = re_interpreter_in_chunkleft(self);
 				if (avail == 0) {
@@ -1065,6 +1229,7 @@ dispatch:
 					count -= avail;
 				}
 			}
+#endif /* !LIBREGEX_REGEXEC_SINGLE_CHUNK */
 			DISPATCH();
 		}
 
@@ -1108,7 +1273,7 @@ dispatch:
 			if (re_interpreter_is_eoi(self))
 				ONFAIL();
 			ch = re_interpreter_readbyte(self);
-			if (islf(ch))
+			if (ascii_islf(ch))
 				ONFAIL();
 			DISPATCH();
 		}
@@ -1148,7 +1313,7 @@ dispatch:
 			if (re_interpreter_is_eoi(self))
 				ONFAIL();
 			ch = re_interpreter_readbyte(self);
-			if (ch == '\0' || islf(ch))
+			if (ch == '\0' || ascii_islf(ch))
 				ONFAIL();
 			DISPATCH();
 		}
@@ -1297,7 +1462,7 @@ REOP_CS_BYTE_dispatch:
 			opcode = getb();
 			switch (opcode) {
 
-			case RECS_BITSET_MIN ... RECS_BITSET_MAX_BYTE: {
+			case_RECS_BITSET_MIN_to_MAX_BYTE: {
 				uint8_t bitset_minch = RECS_BITSET_GETBASE(opcode);
 				uint8_t bitset_size  = RECS_BITSET_GETBYTES(opcode);
 				byte_t bitset_rel_ch;
@@ -1370,11 +1535,11 @@ REOP_CS_UTF8_dispatch:
 			opcode = getb();
 			switch (opcode) {
 
-			case RECS_BITSET_MIN ... RECS_BITSET_MAX_UTF8: {
+			case_RECS_BITSET_MIN_to_MAX_UTF8: {
 				uint8_t bitset_minch = RECS_BITSET_GETBASE(opcode);
 				uint8_t bitset_size  = RECS_BITSET_GETBYTES(opcode);
 				byte_t bitset_rel_ch;
-				if (ch < 0x80 && !OVERFLOW_USUB(ch, bitset_minch, &bitset_rel_ch)) {
+				if (ch < 0x80 && !OVERFLOW_USUB((uint8_t)ch, bitset_minch, &bitset_rel_ch)) {
 					unsigned int bitset_bits = bitset_size * 8;
 					if (bitset_rel_ch < bitset_bits) {
 						if ((pc[bitset_rel_ch / 8] & (1 << (bitset_rel_ch % 8))) != 0) {
@@ -1457,7 +1622,7 @@ REOP_CS_UTF8_dispatch:
 				goto REOP_CS_UTF8_dispatch;
 			}
 
-			case RECS_ISX_MIN ... RECS_ISX_MAX: {
+			case_RECS_ISX_MIN_to_MAX: {
 				uint16_t trait    = libre_unicode_traits[opcode - RECS_ISX_MIN];
 				uint16_t ch_flags = __unicode_descriptor(ch)->__ut_flags;
 				uint16_t ch_mask  = ch_flags & trait;
@@ -1482,11 +1647,11 @@ REOP_NCS_UTF8_dispatch:
 			opcode = getb();
 			switch (opcode) {
 
-			case RECS_BITSET_MIN ... RECS_BITSET_MAX_UTF8: {
+			case_RECS_BITSET_MIN_to_MAX_UTF8: {
 				uint8_t bitset_minch = RECS_BITSET_GETBASE(opcode);
 				uint8_t bitset_size  = RECS_BITSET_GETBYTES(opcode);
 				byte_t bitset_rel_ch;
-				if (ch < 0x80 && !OVERFLOW_USUB(ch, bitset_minch, &bitset_rel_ch)) {
+				if (ch < 0x80 && !OVERFLOW_USUB((uint8_t)ch, bitset_minch, &bitset_rel_ch)) {
 					unsigned int bitset_bits = bitset_size * 8;
 					if (bitset_rel_ch < bitset_bits) {
 						if ((pc[bitset_rel_ch / 8] & (1 << (bitset_rel_ch % 8))) != 0)
@@ -1560,7 +1725,7 @@ REOP_NCS_UTF8_dispatch:
 				goto REOP_NCS_UTF8_dispatch;
 			}
 
-			case RECS_ISX_MIN ... RECS_ISX_MAX: {
+			case_RECS_ISX_MIN_to_MAX: {
 				uint16_t trait    = libre_unicode_traits[opcode - RECS_ISX_MIN];
 				uint16_t ch_flags = __unicode_descriptor(ch)->__ut_flags;
 				uint16_t ch_mask  = ch_flags & trait;
@@ -1599,7 +1764,7 @@ REOP_NCS_UTF8_dispatch:
 			DISPATCH();
 		}
 
-		TARGET(REOP_GROUP_MATCH_JMIN ... REOP_GROUP_MATCH_JMAX) {
+		XTARGET(case_REOP_GROUP_MATCH_JMIN_to_JMAX) {
 			byte_t gid = getb();
 			re_regmatch_t match;
 			assert(gid < self->ri_exec->rx_code->rc_ngrps);
@@ -1648,7 +1813,7 @@ REOP_NCS_UTF8_dispatch:
 			} else {
 				byte_t prevbyte;
 				prevbyte = re_interpreter_prevbyte(self);
-				if (islf(prevbyte))
+				if (ascii_islf(prevbyte))
 					DISPATCH();
 			}
 			ONFAIL();
@@ -1674,7 +1839,7 @@ REOP_NCS_UTF8_dispatch:
 			} else {
 				byte_t nextbyte;
 				nextbyte = re_interpreter_nextbyte(self);
-				if (islf(nextbyte))
+				if (ascii_islf(nextbyte))
 					DISPATCH();
 			}
 			ONFAIL();
@@ -1701,7 +1866,7 @@ REOP_NCS_UTF8_dispatch:
 			} else {
 				byte_t prevbyte;
 				prevbyte = re_interpreter_prevbyte(self);
-				if (islf(prevbyte))
+				if (ascii_islf(prevbyte))
 					DISPATCH();
 			}
 			ONFAIL();
@@ -1729,7 +1894,7 @@ REOP_NCS_UTF8_dispatch:
 			} else {
 				byte_t nextbyte;
 				nextbyte = re_interpreter_nextbyte(self);
-				if (islf(nextbyte))
+				if (ascii_islf(nextbyte))
 					DISPATCH();
 			}
 			ONFAIL();
@@ -1892,7 +2057,7 @@ do_set_group_eo_and_dispatch:
 			DISPATCH();
 		}
 
-		TARGET(REOP_GROUP_END_JMIN ... REOP_GROUP_END_JMAX) {
+		XTARGET(case_REOP_GROUP_END_JMIN_to_JMAX) {
 			byte_t gid = getb();
 			assert(gid < self->ri_exec->rx_code->rc_ngrps);
 			if (self->ri_onfailc && /* No need to make a backup if it can't be restored */
@@ -2031,7 +2196,7 @@ do_set_group_eo_and_dispatch_j:
 			/* Compare with a previous match. */
 			if (self->ri_onfailc != 0) {
 				/* Check if our current match is the best it can get. */
-				if (re_interpreter_is_eoi(&self->ri_in)) {
+				if (re_interpreter_is_eoi(self)) {
 					/* No need to keep going! -- It can't get any better than this.
 					 *
 					 * BUT: if the caller  also wants  group matches, we  have to  find
@@ -2045,8 +2210,8 @@ do_set_group_eo_and_dispatch_j:
 				 *    than the previous best match, and replace the previous
 				 *    one if the new one is better. */
 				if (!best_match_isvalid() ||
-				    ((re_interpreter_in_curoffset(self) > re_interpreter_in_curoffset(&self->ri_bmatch)) ||
-				     (re_interpreter_in_curoffset(self) == re_interpreter_in_curoffset(&self->ri_bmatch) &&
+				    ((re_interpreter_in_curoffset_or_ptr(self) > re_interpreter_in_curoffset_or_ptr(&self->ri_bmatch)) ||
+				     (re_interpreter_in_curoffset_or_ptr(self) == re_interpreter_in_curoffset_or_ptr(&self->ri_bmatch) &&
 				      (self->ri_exec->rx_nmatch && is_regmatch_better(self->ri_pmatch, self->ri_bmatch_g,
 				                                                      self->ri_exec->rx_code->rc_ngrps))))) {
 					struct re_exec const *exec;
@@ -2059,9 +2224,9 @@ do_set_group_eo_and_dispatch_j:
 							self->ri_bmatch_g = (re_regmatch_t *)alloca(exec->rx_code->rc_ngrps *
 							                                            sizeof(re_regmatch_t));
 						}
-						memcpy(self->ri_bmatch_g, self->ri_pmatch,
-						       exec->rx_code->rc_ngrps,
-						       sizeof(re_regmatch_t));
+						memcpyc(self->ri_bmatch_g, self->ri_pmatch,
+						        exec->rx_code->rc_ngrps,
+						        sizeof(re_regmatch_t));
 					}
 					self->ri_bmatch = self->ri_in;
 				}
@@ -2072,17 +2237,17 @@ do_set_group_eo_and_dispatch_j:
 			 * -> check  if the current match is better than the best. If
 			 *    it isn't, then restore the best match before returning. */
 			if (best_match_isvalid() &&
-			    ((re_interpreter_in_curoffset(&self->ri_bmatch) > re_interpreter_in_curoffset(self)) ||
-			     (re_interpreter_in_curoffset(&self->ri_bmatch) == re_interpreter_in_curoffset(self) &&
+			    ((re_interpreter_in_curoffset_or_ptr(&self->ri_bmatch) > re_interpreter_in_curoffset_or_ptr(self)) ||
+			     (re_interpreter_in_curoffset_or_ptr(&self->ri_bmatch) == re_interpreter_in_curoffset_or_ptr(self) &&
 			      (self->ri_exec->rx_nmatch && is_regmatch_better(self->ri_bmatch_g, self->ri_pmatch,
 			                                                      self->ri_exec->rx_code->rc_ngrps))))) {
 return_best_match:
 				self->ri_in = self->ri_bmatch;
 				if (self->ri_exec->rx_nmatch) {
 					/* Must also restore the current state of group-matches */
-					memcpy(self->ri_pmatch, self->ri_bmatch_g,
-					       self->ri_exec->rx_code->rc_ngrps,
-					       sizeof(re_regmatch_t));
+					memcpyc(self->ri_pmatch, self->ri_bmatch_g,
+					        self->ri_exec->rx_code->rc_ngrps,
+					        sizeof(re_regmatch_t));
 				}
 			}
 			/* Fallthru to the PERFECT_MATCH opcode */
@@ -2144,6 +2309,7 @@ err_nomem:
 #undef PUSHFAIL_EX
 #undef PUSHFAIL_DUMMY
 #undef PUSHFAIL
+#undef XTARGET
 #undef TARGET
 #undef ONFAIL
 #undef DISPATCH
@@ -2321,6 +2487,13 @@ err:
 	return -error;
 }
 
+
+
+#undef delta16_get
+#undef DBG_memset
+#undef ascii_islf
+#undef HAVE_TRACE
+#undef TRACE
 
 
 /* Exports */

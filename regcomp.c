@@ -1,7 +1,3 @@
-/*[[[magic
-// "sorry, unimplemented: non-trivial designated initializers not supported"  -- UGH!
-options["COMPILE.language"] = "c";
-]]]*/
 /* Copyright (c) 2019-2022 Griefer@Work                                       *
  *                                                                            *
  * This software is provided 'as-is', without any express or implied          *
@@ -29,6 +25,8 @@ options["COMPILE.language"] = "c";
 
 #include "api.h"
 /**/
+
+#ifndef LIBREGEX_NO_SYSTEM_INCLUDES
 #include <hybrid/compiler.h>
 
 #include <hybrid/align.h>
@@ -51,18 +49,23 @@ options["COMPILE.language"] = "c";
 
 #include <libc/template/hex.h>
 #include <libregex/regcomp.h>
+#endif /* !LIBREGEX_NO_SYSTEM_INCLUDES */
 
 #include "regcomp.h"
 #include "regfast.h"
 #include "regpeep.h"
 
 #ifndef NDEBUG
+#ifndef LIBREGEX_NO_SYSTEM_INCLUDES
 #include <format-printer.h>
 #include <inttypes.h>
+#endif /* !LIBREGEX_NO_SYSTEM_INCLUDES */
 #endif /* !NDEBUG */
 
 /* Regex compile-time configuration */
+#ifndef RE_COMP_MAXSIZE
 #define RE_COMP_MAXSIZE 0x10000 /* 2^16 (hard limit on how large regex code blobs may get) */
+#endif /* !RE_COMP_MAXSIZE */
 
 /* Max length for alternation bytecode prefixes.
  * -> These are generated is it later becomes possible to produce per-byte fastmap
@@ -73,16 +76,195 @@ options["COMPILE.language"] = "c";
  *         directly to the relevant alternation.
  * -> For this purpose, only generate up to `ALTERNATION_PREFIX_MAXLEN' bytes
  *    of prefix instructions before giving up and not repeating any prefixes. */
+#ifndef ALTERNATION_PREFIX_MAXLEN
 #define ALTERNATION_PREFIX_MAXLEN 16
+#endif /* !ALTERNATION_PREFIX_MAXLEN */
 
 /* Must # of  ASCII characters that  should appear in  the
  * operand of `REOP_[N]CONTAINS_UTF8', before the compiler
  * should produce a `REOP_[N]CS_UTF8'-sequence instead. */
+#ifndef REOP_CONTAINS_UTF8_MAX_ASCII_COUNT
 #define REOP_CONTAINS_UTF8_MAX_ASCII_COUNT 4
+#endif /* !REOP_CONTAINS_UTF8_MAX_ASCII_COUNT */
+
+/* Regex syntax test functions */
+/*[[[deemon
+local SYNTAX_OPTIONS = {
+	"BACKSLASH_ESCAPE_IN_LISTS",
+	"BK_PLUS_QM",
+	"CHAR_CLASSES",
+	"CONTEXT_INDEP_ANCHORS",
+	"CONTEXT_INVALID_OPS",
+	"DOT_NEWLINE",
+	"DOT_NOT_NULL",
+	"HAT_LISTS_NOT_NEWLINE",
+	"INTERVALS",
+	"LIMITED_OPS",
+	"NEWLINE_ALT",
+	"NO_BK_BRACES",
+	"NO_BK_PARENS",
+	"NO_BK_REFS",
+	"NO_BK_VBAR",
+	"NO_EMPTY_RANGES",
+	"UNMATCHED_RIGHT_PAREN_ORD",
+	"NO_POSIX_BACKTRACKING",
+	"NO_GNU_OPS",
+	"INVALID_INTERVAL_ORD",
+	"ICASE",
+	"CARET_ANCHORS_HERE",
+	"CONTEXT_INVALID_DUP",
+	"ANCHORS_IGNORE_EFLAGS",
+	"NO_UTF8",
+	"NO_KOS_OPS",
+};
+for (local opt: SYNTAX_OPTIONS) {
+	print("#ifdef LIBREGEX_CONSTANT__RE_SYNTAX_", opt);
+	print("#define IF_", opt, "(syntax) LIBREGEX_CONSTANT__RE_SYNTAX_", opt);
+	print("#else /" "* LIBREGEX_CONSTANT__RE_SYNTAX_", opt, " *" "/");
+	print("#define IF_", opt, "(syntax) (((syntax) & RE_SYNTAX_", opt, ") != 0)");
+	print("#endif /" "* LIBREGEX_CONSTANT__RE_SYNTAX_", opt, " *" "/");
+}
+]]]*/
+#ifdef LIBREGEX_CONSTANT__RE_SYNTAX_BACKSLASH_ESCAPE_IN_LISTS
+#define IF_BACKSLASH_ESCAPE_IN_LISTS(syntax) LIBREGEX_CONSTANT__RE_SYNTAX_BACKSLASH_ESCAPE_IN_LISTS
+#else /* LIBREGEX_CONSTANT__RE_SYNTAX_BACKSLASH_ESCAPE_IN_LISTS */
+#define IF_BACKSLASH_ESCAPE_IN_LISTS(syntax) (((syntax) & RE_SYNTAX_BACKSLASH_ESCAPE_IN_LISTS) != 0)
+#endif /* LIBREGEX_CONSTANT__RE_SYNTAX_BACKSLASH_ESCAPE_IN_LISTS */
+#ifdef LIBREGEX_CONSTANT__RE_SYNTAX_BK_PLUS_QM
+#define IF_BK_PLUS_QM(syntax) LIBREGEX_CONSTANT__RE_SYNTAX_BK_PLUS_QM
+#else /* LIBREGEX_CONSTANT__RE_SYNTAX_BK_PLUS_QM */
+#define IF_BK_PLUS_QM(syntax) (((syntax) & RE_SYNTAX_BK_PLUS_QM) != 0)
+#endif /* LIBREGEX_CONSTANT__RE_SYNTAX_BK_PLUS_QM */
+#ifdef LIBREGEX_CONSTANT__RE_SYNTAX_CHAR_CLASSES
+#define IF_CHAR_CLASSES(syntax) LIBREGEX_CONSTANT__RE_SYNTAX_CHAR_CLASSES
+#else /* LIBREGEX_CONSTANT__RE_SYNTAX_CHAR_CLASSES */
+#define IF_CHAR_CLASSES(syntax) (((syntax) & RE_SYNTAX_CHAR_CLASSES) != 0)
+#endif /* LIBREGEX_CONSTANT__RE_SYNTAX_CHAR_CLASSES */
+#ifdef LIBREGEX_CONSTANT__RE_SYNTAX_CONTEXT_INDEP_ANCHORS
+#define IF_CONTEXT_INDEP_ANCHORS(syntax) LIBREGEX_CONSTANT__RE_SYNTAX_CONTEXT_INDEP_ANCHORS
+#else /* LIBREGEX_CONSTANT__RE_SYNTAX_CONTEXT_INDEP_ANCHORS */
+#define IF_CONTEXT_INDEP_ANCHORS(syntax) (((syntax) & RE_SYNTAX_CONTEXT_INDEP_ANCHORS) != 0)
+#endif /* LIBREGEX_CONSTANT__RE_SYNTAX_CONTEXT_INDEP_ANCHORS */
+#ifdef LIBREGEX_CONSTANT__RE_SYNTAX_CONTEXT_INVALID_OPS
+#define IF_CONTEXT_INVALID_OPS(syntax) LIBREGEX_CONSTANT__RE_SYNTAX_CONTEXT_INVALID_OPS
+#else /* LIBREGEX_CONSTANT__RE_SYNTAX_CONTEXT_INVALID_OPS */
+#define IF_CONTEXT_INVALID_OPS(syntax) (((syntax) & RE_SYNTAX_CONTEXT_INVALID_OPS) != 0)
+#endif /* LIBREGEX_CONSTANT__RE_SYNTAX_CONTEXT_INVALID_OPS */
+#ifdef LIBREGEX_CONSTANT__RE_SYNTAX_DOT_NEWLINE
+#define IF_DOT_NEWLINE(syntax) LIBREGEX_CONSTANT__RE_SYNTAX_DOT_NEWLINE
+#else /* LIBREGEX_CONSTANT__RE_SYNTAX_DOT_NEWLINE */
+#define IF_DOT_NEWLINE(syntax) (((syntax) & RE_SYNTAX_DOT_NEWLINE) != 0)
+#endif /* LIBREGEX_CONSTANT__RE_SYNTAX_DOT_NEWLINE */
+#ifdef LIBREGEX_CONSTANT__RE_SYNTAX_DOT_NOT_NULL
+#define IF_DOT_NOT_NULL(syntax) LIBREGEX_CONSTANT__RE_SYNTAX_DOT_NOT_NULL
+#else /* LIBREGEX_CONSTANT__RE_SYNTAX_DOT_NOT_NULL */
+#define IF_DOT_NOT_NULL(syntax) (((syntax) & RE_SYNTAX_DOT_NOT_NULL) != 0)
+#endif /* LIBREGEX_CONSTANT__RE_SYNTAX_DOT_NOT_NULL */
+#ifdef LIBREGEX_CONSTANT__RE_SYNTAX_HAT_LISTS_NOT_NEWLINE
+#define IF_HAT_LISTS_NOT_NEWLINE(syntax) LIBREGEX_CONSTANT__RE_SYNTAX_HAT_LISTS_NOT_NEWLINE
+#else /* LIBREGEX_CONSTANT__RE_SYNTAX_HAT_LISTS_NOT_NEWLINE */
+#define IF_HAT_LISTS_NOT_NEWLINE(syntax) (((syntax) & RE_SYNTAX_HAT_LISTS_NOT_NEWLINE) != 0)
+#endif /* LIBREGEX_CONSTANT__RE_SYNTAX_HAT_LISTS_NOT_NEWLINE */
+#ifdef LIBREGEX_CONSTANT__RE_SYNTAX_INTERVALS
+#define IF_INTERVALS(syntax) LIBREGEX_CONSTANT__RE_SYNTAX_INTERVALS
+#else /* LIBREGEX_CONSTANT__RE_SYNTAX_INTERVALS */
+#define IF_INTERVALS(syntax) (((syntax) & RE_SYNTAX_INTERVALS) != 0)
+#endif /* LIBREGEX_CONSTANT__RE_SYNTAX_INTERVALS */
+#ifdef LIBREGEX_CONSTANT__RE_SYNTAX_LIMITED_OPS
+#define IF_LIMITED_OPS(syntax) LIBREGEX_CONSTANT__RE_SYNTAX_LIMITED_OPS
+#else /* LIBREGEX_CONSTANT__RE_SYNTAX_LIMITED_OPS */
+#define IF_LIMITED_OPS(syntax) (((syntax) & RE_SYNTAX_LIMITED_OPS) != 0)
+#endif /* LIBREGEX_CONSTANT__RE_SYNTAX_LIMITED_OPS */
+#ifdef LIBREGEX_CONSTANT__RE_SYNTAX_NEWLINE_ALT
+#define IF_NEWLINE_ALT(syntax) LIBREGEX_CONSTANT__RE_SYNTAX_NEWLINE_ALT
+#else /* LIBREGEX_CONSTANT__RE_SYNTAX_NEWLINE_ALT */
+#define IF_NEWLINE_ALT(syntax) (((syntax) & RE_SYNTAX_NEWLINE_ALT) != 0)
+#endif /* LIBREGEX_CONSTANT__RE_SYNTAX_NEWLINE_ALT */
+#ifdef LIBREGEX_CONSTANT__RE_SYNTAX_NO_BK_BRACES
+#define IF_NO_BK_BRACES(syntax) LIBREGEX_CONSTANT__RE_SYNTAX_NO_BK_BRACES
+#else /* LIBREGEX_CONSTANT__RE_SYNTAX_NO_BK_BRACES */
+#define IF_NO_BK_BRACES(syntax) (((syntax) & RE_SYNTAX_NO_BK_BRACES) != 0)
+#endif /* LIBREGEX_CONSTANT__RE_SYNTAX_NO_BK_BRACES */
+#ifdef LIBREGEX_CONSTANT__RE_SYNTAX_NO_BK_PARENS
+#define IF_NO_BK_PARENS(syntax) LIBREGEX_CONSTANT__RE_SYNTAX_NO_BK_PARENS
+#else /* LIBREGEX_CONSTANT__RE_SYNTAX_NO_BK_PARENS */
+#define IF_NO_BK_PARENS(syntax) (((syntax) & RE_SYNTAX_NO_BK_PARENS) != 0)
+#endif /* LIBREGEX_CONSTANT__RE_SYNTAX_NO_BK_PARENS */
+#ifdef LIBREGEX_CONSTANT__RE_SYNTAX_NO_BK_REFS
+#define IF_NO_BK_REFS(syntax) LIBREGEX_CONSTANT__RE_SYNTAX_NO_BK_REFS
+#else /* LIBREGEX_CONSTANT__RE_SYNTAX_NO_BK_REFS */
+#define IF_NO_BK_REFS(syntax) (((syntax) & RE_SYNTAX_NO_BK_REFS) != 0)
+#endif /* LIBREGEX_CONSTANT__RE_SYNTAX_NO_BK_REFS */
+#ifdef LIBREGEX_CONSTANT__RE_SYNTAX_NO_BK_VBAR
+#define IF_NO_BK_VBAR(syntax) LIBREGEX_CONSTANT__RE_SYNTAX_NO_BK_VBAR
+#else /* LIBREGEX_CONSTANT__RE_SYNTAX_NO_BK_VBAR */
+#define IF_NO_BK_VBAR(syntax) (((syntax) & RE_SYNTAX_NO_BK_VBAR) != 0)
+#endif /* LIBREGEX_CONSTANT__RE_SYNTAX_NO_BK_VBAR */
+#ifdef LIBREGEX_CONSTANT__RE_SYNTAX_NO_EMPTY_RANGES
+#define IF_NO_EMPTY_RANGES(syntax) LIBREGEX_CONSTANT__RE_SYNTAX_NO_EMPTY_RANGES
+#else /* LIBREGEX_CONSTANT__RE_SYNTAX_NO_EMPTY_RANGES */
+#define IF_NO_EMPTY_RANGES(syntax) (((syntax) & RE_SYNTAX_NO_EMPTY_RANGES) != 0)
+#endif /* LIBREGEX_CONSTANT__RE_SYNTAX_NO_EMPTY_RANGES */
+#ifdef LIBREGEX_CONSTANT__RE_SYNTAX_UNMATCHED_RIGHT_PAREN_ORD
+#define IF_UNMATCHED_RIGHT_PAREN_ORD(syntax) LIBREGEX_CONSTANT__RE_SYNTAX_UNMATCHED_RIGHT_PAREN_ORD
+#else /* LIBREGEX_CONSTANT__RE_SYNTAX_UNMATCHED_RIGHT_PAREN_ORD */
+#define IF_UNMATCHED_RIGHT_PAREN_ORD(syntax) (((syntax) & RE_SYNTAX_UNMATCHED_RIGHT_PAREN_ORD) != 0)
+#endif /* LIBREGEX_CONSTANT__RE_SYNTAX_UNMATCHED_RIGHT_PAREN_ORD */
+#ifdef LIBREGEX_CONSTANT__RE_SYNTAX_NO_POSIX_BACKTRACKING
+#define IF_NO_POSIX_BACKTRACKING(syntax) LIBREGEX_CONSTANT__RE_SYNTAX_NO_POSIX_BACKTRACKING
+#else /* LIBREGEX_CONSTANT__RE_SYNTAX_NO_POSIX_BACKTRACKING */
+#define IF_NO_POSIX_BACKTRACKING(syntax) (((syntax) & RE_SYNTAX_NO_POSIX_BACKTRACKING) != 0)
+#endif /* LIBREGEX_CONSTANT__RE_SYNTAX_NO_POSIX_BACKTRACKING */
+#ifdef LIBREGEX_CONSTANT__RE_SYNTAX_NO_GNU_OPS
+#define IF_NO_GNU_OPS(syntax) LIBREGEX_CONSTANT__RE_SYNTAX_NO_GNU_OPS
+#else /* LIBREGEX_CONSTANT__RE_SYNTAX_NO_GNU_OPS */
+#define IF_NO_GNU_OPS(syntax) (((syntax) & RE_SYNTAX_NO_GNU_OPS) != 0)
+#endif /* LIBREGEX_CONSTANT__RE_SYNTAX_NO_GNU_OPS */
+#ifdef LIBREGEX_CONSTANT__RE_SYNTAX_INVALID_INTERVAL_ORD
+#define IF_INVALID_INTERVAL_ORD(syntax) LIBREGEX_CONSTANT__RE_SYNTAX_INVALID_INTERVAL_ORD
+#else /* LIBREGEX_CONSTANT__RE_SYNTAX_INVALID_INTERVAL_ORD */
+#define IF_INVALID_INTERVAL_ORD(syntax) (((syntax) & RE_SYNTAX_INVALID_INTERVAL_ORD) != 0)
+#endif /* LIBREGEX_CONSTANT__RE_SYNTAX_INVALID_INTERVAL_ORD */
+#ifdef LIBREGEX_CONSTANT__RE_SYNTAX_ICASE
+#define IF_ICASE(syntax) LIBREGEX_CONSTANT__RE_SYNTAX_ICASE
+#else /* LIBREGEX_CONSTANT__RE_SYNTAX_ICASE */
+#define IF_ICASE(syntax) (((syntax) & RE_SYNTAX_ICASE) != 0)
+#endif /* LIBREGEX_CONSTANT__RE_SYNTAX_ICASE */
+#ifdef LIBREGEX_CONSTANT__RE_SYNTAX_CARET_ANCHORS_HERE
+#define IF_CARET_ANCHORS_HERE(syntax) LIBREGEX_CONSTANT__RE_SYNTAX_CARET_ANCHORS_HERE
+#else /* LIBREGEX_CONSTANT__RE_SYNTAX_CARET_ANCHORS_HERE */
+#define IF_CARET_ANCHORS_HERE(syntax) (((syntax) & RE_SYNTAX_CARET_ANCHORS_HERE) != 0)
+#endif /* LIBREGEX_CONSTANT__RE_SYNTAX_CARET_ANCHORS_HERE */
+#ifdef LIBREGEX_CONSTANT__RE_SYNTAX_CONTEXT_INVALID_DUP
+#define IF_CONTEXT_INVALID_DUP(syntax) LIBREGEX_CONSTANT__RE_SYNTAX_CONTEXT_INVALID_DUP
+#else /* LIBREGEX_CONSTANT__RE_SYNTAX_CONTEXT_INVALID_DUP */
+#define IF_CONTEXT_INVALID_DUP(syntax) (((syntax) & RE_SYNTAX_CONTEXT_INVALID_DUP) != 0)
+#endif /* LIBREGEX_CONSTANT__RE_SYNTAX_CONTEXT_INVALID_DUP */
+#ifdef LIBREGEX_CONSTANT__RE_SYNTAX_ANCHORS_IGNORE_EFLAGS
+#define IF_ANCHORS_IGNORE_EFLAGS(syntax) LIBREGEX_CONSTANT__RE_SYNTAX_ANCHORS_IGNORE_EFLAGS
+#else /* LIBREGEX_CONSTANT__RE_SYNTAX_ANCHORS_IGNORE_EFLAGS */
+#define IF_ANCHORS_IGNORE_EFLAGS(syntax) (((syntax) & RE_SYNTAX_ANCHORS_IGNORE_EFLAGS) != 0)
+#endif /* LIBREGEX_CONSTANT__RE_SYNTAX_ANCHORS_IGNORE_EFLAGS */
+#ifdef LIBREGEX_CONSTANT__RE_SYNTAX_NO_UTF8
+#define IF_NO_UTF8(syntax) LIBREGEX_CONSTANT__RE_SYNTAX_NO_UTF8
+#else /* LIBREGEX_CONSTANT__RE_SYNTAX_NO_UTF8 */
+#define IF_NO_UTF8(syntax) (((syntax) & RE_SYNTAX_NO_UTF8) != 0)
+#endif /* LIBREGEX_CONSTANT__RE_SYNTAX_NO_UTF8 */
+#ifdef LIBREGEX_CONSTANT__RE_SYNTAX_NO_KOS_OPS
+#define IF_NO_KOS_OPS(syntax) LIBREGEX_CONSTANT__RE_SYNTAX_NO_KOS_OPS
+#else /* LIBREGEX_CONSTANT__RE_SYNTAX_NO_KOS_OPS */
+#define IF_NO_KOS_OPS(syntax) (((syntax) & RE_SYNTAX_NO_KOS_OPS) != 0)
+#endif /* LIBREGEX_CONSTANT__RE_SYNTAX_NO_KOS_OPS */
+/*[[[end]]]*/
+
+
+#ifdef _MSC_VER
+#pragma warning(disable: 4127) /* "warning C4127: conditional expression is constant" */
+#endif /* _MSC_VER */
 
 DECL_BEGIN
 
-/* TODO: Implement as many extensions from "https://www.unicode.org/reports/tr18/" as posssible */
+/* TODO: Implement as many extensions from "https://www.unicode.org/reports/tr18/" as possible */
 
 #undef re_parser_yield
 #define re_parser_yield(self) libre_parser_yield(self)
@@ -119,13 +301,37 @@ DECL_BEGIN
 #define CTYPE_C_FLAG_PUNCT  0x40
 #define CTYPE_C_FLAG_GRAPH  0x5c
 #define CTYPE_C_FLAG_PRINT  0xdc
+#ifdef LIBREGEX_DEFINE___CTYPE_C_FLAGS
+#undef __ctype_C_flags
+#define __ctype_C_flags libregex___ctype_C_flags
+/* NOTE: "128", because we only ever test in the ASCII area */
+PRIVATE uint8_t const libregex___ctype_C_flags[128] = {
+	0x1,0x1,0x1,0x1,0x1,0x1,0x1,0x1,0x1,0x3,0x3,0x3,0x3,0x3,0x1,0x1,
+	0x1,0x1,0x1,0x1,0x1,0x1,0x1,0x1,0x1,0x1,0x1,0x1,0x1,0x1,0x1,0x1,
+	0x82,0x40,0x40,0x40,0x40,0x40,0x40,0x40,0x40,0x40,0x40,0x40,0x40,0x40,0x40,0x40,
+	0x10,0x10,0x10,0x10,0x10,0x10,0x10,0x10,0x10,0x10,0x40,0x40,0x40,0x40,0x40,0x40,
+	0x40,0x28,0x28,0x28,0x28,0x28,0x28,0x8,0x8,0x8,0x8,0x8,0x8,0x8,0x8,0x8,
+	0x8,0x8,0x8,0x8,0x8,0x8,0x8,0x8,0x8,0x8,0x8,0x40,0x40,0x40,0x40,0x40,
+	0x40,0x24,0x24,0x24,0x24,0x24,0x24,0x4,0x4,0x4,0x4,0x4,0x4,0x4,0x4,0x4,
+	0x4,0x4,0x4,0x4,0x4,0x4,0x4,0x4,0x4,0x4,0x4,0x40,0x40,0x40,0x40,0x1
+};
+#endif /* !LIBREGEX_DEFINE___CTYPE_C_FLAGS */
+
+#define ASCII_ISSPACE(c) ((c) == 0x20 || ((c) >= 0x09 && (c) <= 0x0d))
+#define ASCII_ISDIGIT(c) ((c) >= '0' && (c) <= '9')
+
+
 
 /* Mapping from `RECS_ISxxx - RECS_ISX_MIN' to `CTYPE_C_FLAG_*'.
  *
  * Those cases where mask exists encode `0' as mask, causing the
  * handler to do a custom encode below. */
 PRIVATE uint8_t const ctype_c_trait_masks[] = {
+#ifdef __GNUC__
 #define DEF_CTYPE_TRAIT_MASK(opcode, mask) [((opcode) - RECS_ISX_MIN)] = mask
+#else /* __GNUC__ */
+#define DEF_CTYPE_TRAIT_MASK(opcode, mask) /*[((opcode) - RECS_ISX_MIN)] = */mask
+#endif /* !__GNUC__ */
 	DEF_CTYPE_TRAIT_MASK(RECS_ISCNTRL, CTYPE_C_FLAG_CNTRL),
 	DEF_CTYPE_TRAIT_MASK(RECS_ISSPACE, CTYPE_C_FLAG_SPACE),
 	DEF_CTYPE_TRAIT_MASK(RECS_ISUPPER, CTYPE_C_FLAG_UPPER),
@@ -284,30 +490,42 @@ NOTHROW_NCX(CC parse_interval)(char const **__restrict p_pattern, uintptr_t synt
                                struct re_interval *__restrict result) {
 	/* Parse an interval */
 	char const *pattern = *p_pattern;
-	errno_t parse_errno = 0;
 	uint32_t interval_min, interval_max;
-	if (!isdigit(*pattern))
+	(void)syntax;
+	if (!ASCII_ISDIGIT(*pattern))
 		return false;
-	interval_min = strtou32_r(pattern, (char **)&pattern, 10, &parse_errno);
-	if unlikely(parse_errno != 0)
-		return false;
-	result->ri_many  = false;
-	interval_max = interval_min;
+	interval_min = *pattern - '0';
+	++pattern;
+	while (ASCII_ISDIGIT(*pattern)) {
+		if (OVERFLOW_UMUL(interval_min, 10, &interval_min))
+			return false;
+		if (OVERFLOW_UADD(interval_min, (uint8_t)(*pattern - '0'), &interval_min))
+			return false;
+		++pattern;
+	}
+	result->ri_many = false;
+	interval_max    = interval_min;
 	if (*pattern == ',') {
 		++pattern;
-		if ((syntax & RE_SYNTAX_NO_BK_BRACES)
+		if (IF_NO_BK_BRACES(syntax)
 		    ? (pattern[0] == '}')
 		    : (pattern[0] == '\\' && pattern[1] == '}')) {
 			result->ri_many = true;
 		} else {
-			if (!isdigit(*pattern))
+			if (!ASCII_ISDIGIT(*pattern))
 				return false;
-			interval_max = strtou32_r(pattern, (char **)&pattern, 10, &parse_errno);
-			if unlikely(parse_errno != 0)
-				return false;
+			interval_max = *pattern - '0';
+			++pattern;
+			while (ASCII_ISDIGIT(*pattern)) {
+				if (OVERFLOW_UMUL(interval_max, 10, &interval_max))
+					return false;
+				if (OVERFLOW_UADD(interval_max, (uint8_t)(*pattern - '0'), &interval_max))
+					return false;
+				++pattern;
+			}
 		}
 	}
-	if (syntax & RE_SYNTAX_NO_BK_BRACES) {
+	if (IF_NO_BK_BRACES(syntax)) {
 		if (pattern[0] != '}')
 			return false;
 		++pattern;
@@ -335,6 +553,11 @@ NOTHROW_NCX(CC is_a_valid_interval)(char const *__restrict p, uintptr_t syntax) 
 	return parse_interval((char const **)&p, syntax, &interval);
 }
 
+#ifdef _MSC_VER
+#pragma warning(push)
+#pragma warning(disable: 4701) /* Bogus warning */
+#endif /* _MSC_VER */
+
 /* Parse and yield the next regex-token pointed-to by `self->rep_pos'
  * @return: * : A unicode character, or one of `RE_TOKEN_*' */
 INTERN WUNUSED NONNULL((1)) re_token_t
@@ -360,9 +583,8 @@ NOTHROW_NCX(CC libre_parser_yield)(struct re_parser *__restrict self) {
 		return RE_TOKEN_STARTSET;
 
 	case '{':
-		if ((self->rep_syntax & (RE_SYNTAX_INTERVALS | RE_SYNTAX_NO_BK_BRACES)) ==
-		    /*               */ (RE_SYNTAX_INTERVALS | RE_SYNTAX_NO_BK_BRACES)) {
-			if (!(self->rep_syntax & RE_SYNTAX_INVALID_INTERVAL_ORD))
+		if (IF_INTERVALS(self->rep_syntax) && IF_NO_BK_BRACES(self->rep_syntax)) {
+			if (!IF_INVALID_INTERVAL_ORD(self->rep_syntax))
 				return RE_TOKEN_STARTINTERVAL; /* '{' is always an interval */
 			if (is_a_valid_interval(self->rep_pos, self->rep_syntax))
 				return RE_TOKEN_STARTINTERVAL; /* '{' followed by a valid interval is OK */
@@ -370,19 +592,18 @@ NOTHROW_NCX(CC libre_parser_yield)(struct re_parser *__restrict self) {
 		break;
 
 	case '(':
-		if (self->rep_syntax & RE_SYNTAX_NO_BK_PARENS)
+		if (IF_NO_BK_PARENS(self->rep_syntax))
 			return RE_TOKEN_STARTGROUP;
 		break;
 
 	case ')':
-		if ((self->rep_syntax & (RE_SYNTAX_NO_BK_PARENS | RE_SYNTAX_UNMATCHED_RIGHT_PAREN_ORD)) ==
-		    /*               */ (RE_SYNTAX_NO_BK_PARENS)) {
+		if (IF_NO_BK_PARENS(self->rep_syntax) && !IF_UNMATCHED_RIGHT_PAREN_ORD(self->rep_syntax))
 			return RE_TOKEN_ENDGROUP;
-		}
 		break;
 
 	case '^':
-		if (self->rep_syntax & (RE_SYNTAX_CONTEXT_INDEP_ANCHORS | RE_SYNTAX_CARET_ANCHORS_HERE))
+		if (IF_CONTEXT_INDEP_ANCHORS(self->rep_syntax) ||
+		    IF_CARET_ANCHORS_HERE(self->rep_syntax))
 			return RE_TOKEN_AT_SOL;
 		if (self->rep_pos == self->rep_pat + 1)
 			return RE_TOKEN_AT_SOL; /* Always special at start of pattern */
@@ -394,7 +615,7 @@ NOTHROW_NCX(CC libre_parser_yield)(struct re_parser *__restrict self) {
 				--iter;
 				is_escaled = !is_escaled;
 			}
-			if (!(self->rep_syntax & RE_SYNTAX_NO_BK_PARENS))
+			if (!IF_NO_BK_PARENS(self->rep_syntax))
 				is_escaled = !is_escaled; /* Invert meaning of escaped vs. non-escaped */
 			if (!is_escaled) {
 				/* '^' is following a non-escaped '(' -> it's an AT-marker! */
@@ -404,27 +625,27 @@ NOTHROW_NCX(CC libre_parser_yield)(struct re_parser *__restrict self) {
 		break;
 
 	case '$':
-		if (self->rep_syntax & RE_SYNTAX_CONTEXT_INDEP_ANCHORS)
+		if (IF_CONTEXT_INDEP_ANCHORS(self->rep_syntax))
 			return RE_TOKEN_AT_EOL;
 		if (self->rep_pos[0] == '\0' && self->rep_pos >= self->rep_end)
 			return RE_TOKEN_AT_EOL; /* Always special at end of pattern */
-		if ((self->rep_pos[0] == ')') && (self->rep_syntax & RE_SYNTAX_NO_BK_PARENS))
+		if ((self->rep_pos[0] == ')') && IF_NO_BK_PARENS(self->rep_syntax))
 			return RE_TOKEN_AT_EOL; /* Always special before group-close */
-		if ((self->rep_pos[0] == '\\' && self->rep_pos[1] == ')') && !(self->rep_syntax & RE_SYNTAX_NO_BK_PARENS))
+		if ((self->rep_pos[0] == '\\' && self->rep_pos[1] == ')') && !IF_NO_BK_PARENS(self->rep_syntax))
 			return RE_TOKEN_AT_EOL; /* Always special before group-close */
 		break;
 
 	case '+':
-		if (self->rep_syntax & RE_SYNTAX_LIMITED_OPS)
+		if (IF_LIMITED_OPS(self->rep_syntax))
 			break; /* "+" operator is disabled */
-		if (!(self->rep_syntax & RE_SYNTAX_BK_PLUS_QM))
+		if (!IF_BK_PLUS_QM(self->rep_syntax))
 			return RE_TOKEN_PLUS; /* "+" is an operator */
 		break;
 
 	case '?':
-		if (self->rep_syntax & RE_SYNTAX_LIMITED_OPS)
+		if (IF_LIMITED_OPS(self->rep_syntax))
 			break; /* "?" operator is disabled */
-		if (!(self->rep_syntax & RE_SYNTAX_BK_PLUS_QM))
+		if (!IF_BK_PLUS_QM(self->rep_syntax))
 			return RE_TOKEN_QMARK; /* "?" is an operator */
 		break;
 
@@ -432,13 +653,13 @@ NOTHROW_NCX(CC libre_parser_yield)(struct re_parser *__restrict self) {
 		return RE_TOKEN_STAR;
 
 	case '\n':
-		if (!(self->rep_syntax & RE_SYNTAX_NEWLINE_ALT))
+		if (!IF_NEWLINE_ALT(self->rep_syntax))
 			break;
 		ATTR_FALLTHROUGH
 	case '|':
-		if (self->rep_syntax & RE_SYNTAX_LIMITED_OPS)
+		if (IF_LIMITED_OPS(self->rep_syntax))
 			break; /* "|" operator is disabled */
-		if (self->rep_syntax & RE_SYNTAX_NO_BK_VBAR)
+		if (IF_NO_BK_VBAR(self->rep_syntax))
 			return RE_TOKEN_ALTERNATION; /* "|" is an operator */
 		break;
 
@@ -455,9 +676,8 @@ NOTHROW_NCX(CC libre_parser_yield)(struct re_parser *__restrict self) {
 			goto default_escaped_char;
 
 		case '{':
-			if ((self->rep_syntax & (RE_SYNTAX_INTERVALS | RE_SYNTAX_NO_BK_BRACES)) ==
-			    /*               */ (RE_SYNTAX_INTERVALS)) {
-				if (!(self->rep_syntax & RE_SYNTAX_INVALID_INTERVAL_ORD))
+			if (IF_INTERVALS(self->rep_syntax) && !IF_NO_BK_BRACES(self->rep_syntax)) {
+				if (!IF_INVALID_INTERVAL_ORD(self->rep_syntax))
 					return RE_TOKEN_STARTINTERVAL;
 				if (is_a_valid_interval(self->rep_pos, self->rep_syntax))
 					return RE_TOKEN_STARTINTERVAL; /* '{' followed by a valid interval is OK */
@@ -465,104 +685,103 @@ NOTHROW_NCX(CC libre_parser_yield)(struct re_parser *__restrict self) {
 			break;
 
 		case '(':
-			if (!(self->rep_syntax & RE_SYNTAX_NO_BK_PARENS))
+			if (!IF_NO_BK_PARENS(self->rep_syntax))
 				return RE_TOKEN_STARTGROUP;
 			break;
 
 		case ')':
-			if (!(self->rep_syntax & (RE_SYNTAX_NO_BK_PARENS |
-			                          RE_SYNTAX_UNMATCHED_RIGHT_PAREN_ORD)))
+			if (!IF_NO_BK_PARENS(self->rep_syntax) && !IF_UNMATCHED_RIGHT_PAREN_ORD(self->rep_syntax))
 				return RE_TOKEN_ENDGROUP;
 			break;
 
 		case '+':
-			if (self->rep_syntax & RE_SYNTAX_LIMITED_OPS)
+			if (IF_LIMITED_OPS(self->rep_syntax))
 				break; /* "+" operator is disabled */
-			if (self->rep_syntax & RE_SYNTAX_BK_PLUS_QM)
+			if (IF_BK_PLUS_QM(self->rep_syntax))
 				return RE_TOKEN_PLUS; /* "\+" is an operator */
 			break;
 
 		case '?':
-			if (self->rep_syntax & RE_SYNTAX_LIMITED_OPS)
+			if (IF_LIMITED_OPS(self->rep_syntax))
 				break; /* "?" operator is disabled */
-			if (self->rep_syntax & RE_SYNTAX_BK_PLUS_QM)
+			if (IF_BK_PLUS_QM(self->rep_syntax))
 				return RE_TOKEN_QMARK; /* "\?" is an operator */
 			break;
 
 		case '|':
-			if (self->rep_syntax & RE_SYNTAX_LIMITED_OPS)
+			if (IF_LIMITED_OPS(self->rep_syntax))
 				break; /* "|" operator is disabled */
-			if (!(self->rep_syntax & RE_SYNTAX_NO_BK_VBAR))
+			if (!IF_NO_BK_VBAR(self->rep_syntax))
 				return RE_TOKEN_ALTERNATION; /* "\|" is an operator */
 			break;
 
 		case 'w':
-			if (!(self->rep_syntax & RE_SYNTAX_NO_GNU_OPS))
+			if (!IF_NO_GNU_OPS(self->rep_syntax))
 				return RE_TOKEN_BK_w;
 			break;
 
 		case 'W':
-			if (!(self->rep_syntax & RE_SYNTAX_NO_GNU_OPS))
+			if (!IF_NO_GNU_OPS(self->rep_syntax))
 				return RE_TOKEN_BK_W;
 			break;
 
 		case 's':
-			if (!(self->rep_syntax & RE_SYNTAX_NO_GNU_OPS))
+			if (!IF_NO_GNU_OPS(self->rep_syntax))
 				return RE_TOKEN_BK_s;
 			break;
 
 		case 'S':
-			if (!(self->rep_syntax & RE_SYNTAX_NO_GNU_OPS))
+			if (!IF_NO_GNU_OPS(self->rep_syntax))
 				return RE_TOKEN_BK_S;
 			break;
 
 		case 'd':
-			if (!(self->rep_syntax & RE_SYNTAX_NO_KOS_OPS))
+			if (!IF_NO_KOS_OPS(self->rep_syntax))
 				return RE_TOKEN_BK_d;
 			break;
 
 		case 'D':
-			if (!(self->rep_syntax & RE_SYNTAX_NO_KOS_OPS))
+			if (!IF_NO_KOS_OPS(self->rep_syntax))
 				return RE_TOKEN_BK_D;
 			break;
 
 		case 'n':
-			if (!(self->rep_syntax & RE_SYNTAX_NO_KOS_OPS))
+			if (!IF_NO_KOS_OPS(self->rep_syntax))
 				return RE_TOKEN_BK_n;
 			break;
 
 		case 'N':
-			if (!(self->rep_syntax & RE_SYNTAX_NO_KOS_OPS))
+			if (!IF_NO_KOS_OPS(self->rep_syntax))
 				return RE_TOKEN_BK_N;
 			break;
 
 		case '`':
-			if (!(self->rep_syntax & RE_SYNTAX_NO_GNU_OPS))
+			if (!IF_NO_GNU_OPS(self->rep_syntax))
 				return RE_TOKEN_AT_SOI;
 			break;
 
 		case '\'':
-			if (!(self->rep_syntax & RE_SYNTAX_NO_GNU_OPS))
+			if (!IF_NO_GNU_OPS(self->rep_syntax))
 				return RE_TOKEN_AT_EOI;
 			break;
 
 		case 'b':
-			if (!(self->rep_syntax & RE_SYNTAX_NO_GNU_OPS))
+			if (!IF_NO_GNU_OPS(self->rep_syntax))
 				return RE_TOKEN_AT_WOB;
 			break;
 
 		case 'B':
-			if (!(self->rep_syntax & RE_SYNTAX_NO_GNU_OPS))
+			if (!IF_NO_GNU_OPS(self->rep_syntax))
 				return RE_TOKEN_AT_WOB_NOT;
 			break;
 
 		case '<':
-			if (!(self->rep_syntax & RE_SYNTAX_NO_GNU_OPS))
+			if (!IF_NO_GNU_OPS(self->rep_syntax))
 				return RE_TOKEN_AT_SOW;
 			break;
 
 		case '>':
-			if (!(self->rep_syntax & RE_SYNTAX_NO_GNU_OPS))
+			if (!IF_NO_GNU_OPS(self->rep_syntax))
 				return RE_TOKEN_AT_EOW;
 			break;
 
@@ -578,24 +797,32 @@ NOTHROW_NCX(CC libre_parser_yield)(struct re_parser *__restrict self) {
 			break;
 
 		case 'A':
-			if (!(self->rep_syntax & RE_SYNTAX_NO_KOS_OPS))
+			if (!IF_NO_KOS_OPS(self->rep_syntax))
 				return RE_TOKEN_AT_SOI;
 			break;
 
 		case 'Z':
-			if (!(self->rep_syntax & RE_SYNTAX_NO_KOS_OPS))
+			if (!IF_NO_KOS_OPS(self->rep_syntax))
 				return RE_TOKEN_AT_EOI;
 			break;
 
-		case '1' ... '9':
-			if (!(self->rep_syntax & RE_SYNTAX_NO_BK_REFS))
+		case '1':
+		case '2':
+		case '3':
+		case '4':
+		case '5':
+		case '6':
+		case '7':
+		case '8':
+		case '9':
+			if (!IF_NO_BK_REFS(self->rep_syntax))
 				return RE_TOKEN_BKREF_1 + (ch - '1');
 			break;
 
 		case '0': {
 			uint32_t ord;
 			unsigned int i, ndigits;
-			if (self->rep_syntax & RE_SYNTAX_NO_KOS_OPS)
+			if (IF_NO_KOS_OPS(self->rep_syntax))
 				break;
 			ord     = 0;
 			ndigits = 3;
@@ -625,7 +852,7 @@ NOTHROW_NCX(CC libre_parser_yield)(struct re_parser *__restrict self) {
 		case 'x': {
 			uint32_t ord;
 			unsigned int i, ndigits;
-			if (self->rep_syntax & RE_SYNTAX_NO_KOS_OPS)
+			if (IF_NO_KOS_OPS(self->rep_syntax))
 				break;
 			ndigits = ch == 'U' ? 8 : ch == 'u' ? 4 : 2;
 			ord     = 0;
@@ -656,44 +883,45 @@ NOTHROW_NCX(CC libre_parser_yield)(struct re_parser *__restrict self) {
 			return ord;
 		}	break;
 
-		case 0x80 ... 0xff:
-			goto handle_utf8;
-
 		default:
+			if (ch >= 0x80 /*&& ch <= 0xff*/)
+				goto handle_utf8;
 default_escaped_char:
 			break;
 		}
 		break;
 
-	case 0x80 ... 0xff: {
-		char32_t uni;
-		uint8_t i, seqlen;
-handle_utf8:
-		if (self->rep_syntax & RE_SYNTAX_NO_UTF8) {
-			/* Always emit byte-literals */
-			return RE_TOKEN_BYTE80h_MIN + (ch - 0x80);
-		}
-		--self->rep_pos;
-		/* Make sure that `unicode_readutf8(3)' won't access out-of-bounds memory */
-		seqlen = unicode_utf8seqlen[ch];
-		for (i = 0; i < seqlen; ++i) {
-			if (self->rep_pos[i] == '\0' && (self->rep_pos + i) >= self->rep_end)
-				return RE_TOKEN_ILLSEQ;
-		}
-		uni = unicode_readutf8(&self->rep_pos);
-		if unlikely(uni >= RE_TOKEN_BASE) {
-			self->rep_pos -= seqlen;
-			return RE_TOKEN_ILLSEQ;
-		}
-		return uni;
-	}	break;
-
 	default:
+		if (ch >= 0x80 /*&& ch <= 0xff*/) {
+			char32_t uni;
+			uint8_t i, seqlen;
+handle_utf8:
+			if (self->rep_syntax & RE_SYNTAX_NO_UTF8) {
+				/* Always emit byte-literals */
+				return RE_TOKEN_BYTE80h_MIN + (ch - 0x80);
+			}
+			--self->rep_pos;
+			/* Make sure that `unicode_readutf8(3)' won't access out-of-bounds memory */
+			seqlen = unicode_utf8seqlen[ch];
+			for (i = 0; i < seqlen; ++i) {
+				if (self->rep_pos[i] == '\0' && (self->rep_pos + i) >= self->rep_end)
+					return RE_TOKEN_ILLSEQ;
+			}
+			uni = unicode_readutf8(&self->rep_pos);
+			if unlikely(uni >= RE_TOKEN_BASE) {
+				self->rep_pos -= seqlen;
+				return RE_TOKEN_ILLSEQ;
+			}
+			return uni;
+		}
 		break;
 	}
 	return ch; /* Default case: match a literal */
 }
 
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif /* _MSC_VER */
 
 
 
@@ -739,10 +967,14 @@ NOTHROW_NCX(CC re_compiler_require)(struct re_compiler *__restrict self,
 		self->rec_cend  = new_base + new_size;
 		if (new_base != old_base) {
 			/* Update pointers for the the block currently being compiled. */
+#ifdef __GNUC__
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wuse-after-free" /* No: this use of `old_base' after free is OK! */
+#endif /* __GNUC__ */
 			ptrdiff_t delta = new_base - old_base;
+#ifdef __GNUC__
 #pragma GCC diagnostic pop
+#endif /* __GNUC__ */
 			self->rec_estart += delta;
 			self->rec_cpos += delta;
 		}
@@ -833,7 +1065,7 @@ NOTHROW_NCX(CC libre_opcode_next)(byte_t const *__restrict p_instr) {
 		byte_t cs_opcode;
 		while ((cs_opcode = *p_instr++) != RECS_DONE) {
 			switch (cs_opcode) {
-			case RECS_BITSET_MIN ... RECS_BITSET_MAX_BYTE:
+			case_RECS_BITSET_MIN_to_MAX_BYTE:
 				if (cs_opcode <= RECS_BITSET_MAX_UTF8 || opcode == REOP_CS_BYTE)
 					p_instr += RECS_BITSET_GETBYTES(cs_opcode);
 				break;
@@ -873,10 +1105,10 @@ NOTHROW_NCX(CC libre_opcode_next)(byte_t const *__restrict p_instr) {
 	case REOP_BYTE:
 	case REOP_NBYTE:
 	case REOP_GROUP_MATCH:
-	case REOP_GROUP_MATCH_JMIN ... REOP_GROUP_MATCH_JMAX:
+	case_REOP_GROUP_MATCH_JMIN_to_JMAX:
 	case REOP_GROUP_START:
 	case REOP_GROUP_END:
-	case REOP_GROUP_END_JMIN ... REOP_GROUP_END_JMAX:
+	case_REOP_GROUP_END_JMIN_to_JMAX:
 		p_instr += 1;
 		break;
 
@@ -911,7 +1143,7 @@ NOTHROW_NCX(CC re_compiler_allocvar)(struct re_compiler *__restrict self,
                                      uint8_t *__restrict p_vid) {
 	if unlikely(self->rec_code->rc_nvars >= 0x100)
 		return false;
-	*p_vid = self->rec_code->rc_nvars++;
+	*p_vid = (uint8_t)self->rec_code->rc_nvars++;
 	return true;
 }
 
@@ -928,7 +1160,7 @@ dispatch:
 	case REOP_EXACT:
 	case REOP_EXACT_ASCII_ICASE:
 	case REOP_EXACT_UTF8_ICASE:
-	case REOP_ANY_MIN ... REOP_ANY_MAX:
+	case_REOP_ANY_MIN_to_MAX:
 	case REOP_BYTE:
 	case REOP_NBYTE:
 	case REOP_BYTE2:
@@ -943,17 +1175,17 @@ dispatch:
 	case REOP_GROUP_MATCH: /* If it was an epsilon-match, `REOP_GROUP_MATCH_Jn' would have been used. */
 		return false;
 
-	case REOP_GROUP_MATCH_JMIN ... REOP_GROUP_MATCH_JMAX:
+	case_REOP_GROUP_MATCH_JMIN_to_JMAX:
 		/* Group match, where matched group can itself match epsilon
 		 * As such, this opcode, too,  is able to match epsilon  (so
 		 * keep looking for something that makes epsilon impossible) */
 	case REOP_GROUP_START:
 	case REOP_GROUP_END:
-	case REOP_GROUP_END_JMIN ... REOP_GROUP_END_JMAX:
+	case_REOP_GROUP_END_JMIN_to_JMAX:
 		++pc; /* gid */
 		goto dispatch;
 
-	case REOP_AT_MIN ... REOP_AT_MAX:
+	case_REOP_AT_MIN_to_MAX:
 	case REOP_POP_ONFAIL:
 	case REOP_JMP_ONFAIL_DUMMY:
 	case REOP_NOP:
@@ -1025,7 +1257,7 @@ dispatch:
 PRIVATE WUNUSED NONNULL((1)) re_errno_t
 NOTHROW_NCX(CC re_compiler_compile_literal_byte)(struct re_compiler *__restrict self,
                                                  byte_t literal_byte) {
-	if (self->rec_parser.rep_syntax & RE_SYNTAX_ICASE) {
+	if (IF_ICASE(self->rec_parser.rep_syntax)) {
 		char lower = (char)tolower((unsigned char)literal_byte);
 		char upper = (char)toupper((unsigned char)literal_byte);
 		if (lower != upper) {
@@ -1056,6 +1288,10 @@ err_nomem:
 	return RE_ESPACE;
 }
 
+#ifndef __LIBCCALL
+#define __LIBCCALL /* nothing */
+#endif /* !__LIBCCALL */
+
 PRIVATE int __LIBCCALL compare_char32_t(void const *a, void const *b) {
 	char32_t lhs = *(char32_t const *)a;
 	char32_t rhs = *(char32_t const *)b;
@@ -1080,7 +1316,7 @@ NOTHROW_NCX(CC re_compiler_compile_literal_uni)(struct re_compiler *__restrict s
 	}
 
 	/* Match unicode character */
-	if (self->rec_parser.rep_syntax & RE_SYNTAX_ICASE) {
+	if (IF_ICASE(self->rec_parser.rep_syntax)) {
 		uint8_t nchars;
 		/* XXX: Technically, `chars' should be the set of C,  such
 		 *      that `unicode_tolower(tok) == unicode_tolower(C)',
@@ -1124,7 +1360,7 @@ NOTHROW_NCX(CC re_compiler_compile_literal_uni)(struct re_compiler *__restrict s
 	assert(utf8_len >= 2);
 	if (!re_compiler_putc(self, REOP_EXACT))
 		goto err_nomem;
-	if (!re_compiler_putc(self, utf8_len))
+	if (!re_compiler_putc(self, (uint8_t)utf8_len))
 		goto err_nomem;
 	if unlikely(!re_compiler_putn(self, utf8, utf8_len))
 		goto err_nomem;
@@ -1147,7 +1383,7 @@ NOTHROW_NCX(CC re_compiler_compile_unescaped_literal_byte_seq)(struct re_compile
 
 	/* Select the appropriate `REOP_EXACT' opcode */
 	reop_exact_opcode = REOP_EXACT;
-	if (self->rec_parser.rep_syntax & RE_SYNTAX_ICASE) {
+	if (IF_ICASE(self->rec_parser.rep_syntax)) {
 		/* Can just use the regular code-path, only have the runtime
 		 * use `memcasecmp(3)' instead of the usual `memcmp(3)' when
 		 * comparing input. */
@@ -1204,13 +1440,13 @@ NOTHROW_NCX(CC re_compiler_compile_unescaped_literal_seq)(struct re_compiler *__
                                                           char const *literal_seq_end,
                                                           size_t literal_seq_length,
                                                           bool literal_seq_isutf8) {
-	if (!literal_seq_isutf8 || !(self->rec_parser.rep_syntax & RE_SYNTAX_ICASE)) {
+	if (!literal_seq_isutf8 || !(IF_ICASE(self->rec_parser.rep_syntax))) {
 		/* If  input is ascii-only, or if casing isn't being ignored, then
 		 * we can simply compile the entire literal sequence byte-by-byte. */
 		return re_compiler_compile_unescaped_literal_byte_seq(self, literal_seq_start, literal_seq_end);
 	}
 
-	assert(self->rec_parser.rep_syntax & RE_SYNTAX_ICASE);
+	assert(IF_ICASE(self->rec_parser.rep_syntax));
 	assert(literal_seq_isutf8);
 	/* Must encode a unicode sequence: REOP_EXACT_UTF8_ICASE */
 	while (literal_seq_length > 0) {
@@ -1402,9 +1638,6 @@ NOTHROW_NCX(CC re_compiler_compile_literal_seq)(struct re_compiler *__restrict s
 	if (literal_seq_hasesc)
 		free(unesc_literal_seq_start);
 	return error;
-
-/*done_literal:*/
-	return RE_NOERROR;
 err_nomem:
 	return RE_ESPACE;
 }
@@ -1441,8 +1674,8 @@ PRIVATE struct charclass_def const charclass_opcodes[] = {
 	{ "graph", RECS_ISGRAPH },
 	{ "print", RECS_ISPRINT },
 	{ "blank", RECS_ISBLANK },
-	{ "symstrt", RECS_ISSYMSTRT },
-	{ "symcont", RECS_ISSYMCONT },
+	{ { 's', 'y', 'm', 's', 't', 'r', 't' }, RECS_ISSYMSTRT },
+	{ { 's', 'y', 'm', 'c', 'o', 'n', 't' }, RECS_ISSYMCONT },
 	{ "tab", RECS_ISTAB },
 	{ "white", RECS_ISWHITE },
 	{ "empty", RECS_ISEMPTY },
@@ -1482,10 +1715,21 @@ struct unicode_charset {
 	                   * into its sequence (thus: this array can be  bsearch'd) */
 	char  *ucs_endp;  /* [0..1][>= ucs_basep] Charset end pointer. */
 	size_t ucs_count; /* # of unicode characters in this set. */
+#ifdef LIBREGEX_NO_MALLOC_USABLE_SIZE
+	size_t ucs_basep_avail; /* Allocated size of `ucs_basep' */
+#define unicode_charset_get_basep_avail(self)    (self)->ucs_basep_avail
+#define unicode_charset_set_basep_avail(self, v) (void)((self)->ucs_basep_avail = (v))
+#else /* LIBREGEX_NO_MALLOC_USABLE_SIZE */
+#define unicode_charset_get_basep_avail(self)    malloc_usable_size((self)->ucs_basep)
+#define unicode_charset_set_basep_avail(self, v) (void)0
+#endif /* !LIBREGEX_NO_MALLOC_USABLE_SIZE */
 };
 
 #define UNICODE_CHARSET_INIT_IS_ZERO
-#define unicode_charset_init(self)    (void)((self)->ucs_basep = (self)->ucs_endp = NULL, (self)->ucs_count = 0)
+#define unicode_charset_init(self)                      \
+	(void)((self)->ucs_basep = (self)->ucs_endp = NULL, \
+	       (self)->ucs_count                    = 0,    \
+	       unicode_charset_set_basep_avail(self, 0))
 #define unicode_charset_fini(self)    free((self)->ucs_basep)
 #define unicode_charset_isempty(self) ((self)->ucs_basep <= (self)->ucs_endp)
 
@@ -1522,7 +1766,7 @@ NOTHROW_NCX(CC unicode_charset_insert)(struct unicode_charset *__restrict self,
 	utf8_len = (size_t)(unicode_writeutf8(utf8, ch) - utf8);
 	oldsize  = (size_t)(self->ucs_endp - self->ucs_basep);
 	newsize  = oldsize + utf8_len;
-	avlsize  = malloc_usable_size(self->ucs_basep);
+	avlsize  = unicode_charset_get_basep_avail(self);
 	if (newsize > avlsize) {
 		char *newbuf;
 		size_t newalloc = avlsize * 2;
@@ -1530,10 +1774,10 @@ NOTHROW_NCX(CC unicode_charset_insert)(struct unicode_charset *__restrict self,
 			newalloc = 16;
 		if (newalloc < newsize)
 			newalloc = newsize;
-		newbuf = (char *)realloc(self->ucs_basep, newalloc, sizeof(char));
+		newbuf = (char *)reallocv(self->ucs_basep, newalloc, sizeof(char));
 		if unlikely(!newbuf) {
 			newalloc = newsize;
-			newbuf   = (char *)realloc(self->ucs_basep, newalloc, sizeof(char));
+			newbuf   = (char *)reallocv(self->ucs_basep, newalloc, sizeof(char));
 			if unlikely(!newbuf)
 				return -1;
 		}
@@ -1541,11 +1785,12 @@ NOTHROW_NCX(CC unicode_charset_insert)(struct unicode_charset *__restrict self,
 		hi = newbuf + (hi - self->ucs_basep);
 		self->ucs_basep = newbuf;
 		self->ucs_endp  = newbuf + oldsize;
+		unicode_charset_set_basep_avail(self, newalloc);
 	}
 
 	/* Insert the utf8-sequence at the required offset. */
-	memmoveup(lo + utf8_len, lo, (size_t)(self->ucs_endp - lo), sizeof(char));
-	memcpy(lo, utf8, utf8_len, sizeof(char));
+	memmoveupc(lo + utf8_len, lo, (size_t)(self->ucs_endp - lo), sizeof(char));
+	memcpyc(lo, utf8, utf8_len, sizeof(char));
 	self->ucs_endp += utf8_len;
 	assert(self->ucs_endp == self->ucs_basep + newsize);
 	++self->ucs_count;
@@ -1591,7 +1836,8 @@ NOTHROW_NCX(CC re_compiler_gen_RECS_RANGE)(struct re_compiler *__restrict self,
 	size_t codelen;
 	byte_t code[1 + (2 * UNICODE_UTF8_MAXLEN)], *writer;
 	writer    = code;
-	*writer++ = (self->rec_parser.rep_syntax & RE_SYNTAX_ICASE) ? RECS_RANGE_ICASE : RECS_RANGE;
+	*writer++ = IF_ICASE(self->rec_parser.rep_syntax) ? (uint8_t)RECS_RANGE_ICASE
+	                                                  : (uint8_t)RECS_RANGE;
 	writer    = (byte_t *)unicode_writeutf8((char *)writer, lo);
 	writer    = (byte_t *)unicode_writeutf8((char *)writer, hi);
 	codelen   = (size_t)(writer - code);
@@ -1621,6 +1867,11 @@ struct re_charset {
 
 
 
+
+#ifdef _MSC_VER
+#pragma warning(push)
+#pragma warning(disable: 4701) /* Bogus warning */
+#endif /* _MSC_VER */
 
 /* Yield a charset literal. Returns:
  * - A unicode ordinal  (return < RE_TOKEN_BASE)
@@ -1657,8 +1908,7 @@ decpos_and_readutf8:
 		return RE_TOKEN_EOF;
 	}
 	if ((ch == '\\') &&
-	    (self->rep_syntax & (RE_SYNTAX_BACKSLASH_ESCAPE_IN_LISTS | RE_SYNTAX_NO_KOS_OPS)) ==
-	    /*               */ (RE_SYNTAX_BACKSLASH_ESCAPE_IN_LISTS)) {
+	    IF_BACKSLASH_ESCAPE_IN_LISTS(self->rep_syntax) && !IF_NO_KOS_OPS(self->rep_syntax)) {
 		ch = (unsigned char)*self->rep_pos++;
 		switch (ch) {
 
@@ -1673,7 +1923,7 @@ decpos_and_readutf8:
 		case '0': {
 			uint32_t ord;
 			unsigned int i, ndigits;
-			if (self->rep_syntax & RE_SYNTAX_NO_KOS_OPS)
+			if (IF_NO_KOS_OPS(self->rep_syntax))
 				break;
 			ord     = 0;
 			ndigits = 3;
@@ -1703,7 +1953,7 @@ decpos_and_readutf8:
 		case 'x': {
 			uint32_t ord;
 			unsigned int i, ndigits;
-			if (self->rep_syntax & RE_SYNTAX_NO_KOS_OPS)
+			if (IF_NO_KOS_OPS(self->rep_syntax))
 				break;
 			ndigits = ch == 'U' ? 8 : ch == 'u' ? 4 : 2;
 			ord     = 0;
@@ -1734,16 +1984,20 @@ decpos_and_readutf8:
 			return ord;
 		}	break;
 
-		case 0x80 ... 0xff:
-			goto decpos_and_readutf8;
-
 		default:
+			if (ch >= 0x80 /*&& ch <= 0xff*/)
+				goto decpos_and_readutf8;
+
 default_escaped_char:
 			break;
 		}
 	}
 	return ch;
 }
+
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif /* _MSC_VER */
 
 /* Parse a collating character, or a single unicode character
  * - Returns `RE_TOKEN_EOF' if EOF was reached
@@ -1812,6 +2066,11 @@ err_nomem:
 	return RE_ESPACE;
 }
 
+#ifdef _MSC_VER
+#pragma warning(push)
+#pragma warning(disable: 4701) /* Bogus warning */
+#endif /* _MSC_VER */
+
 PRIVATE WUNUSED NONNULL((1, 2)) re_errno_t
 NOTHROW_NCX(CC re_compiler_parse_charset)(struct re_compiler *__restrict self,
                                           struct re_charset *__restrict result) {
@@ -1844,7 +2103,7 @@ loop_next:
 			goto done_loop;
 
 		case '[':
-			if ((self->rec_parser.rep_syntax & RE_SYNTAX_CHAR_CLASSES) &&
+			if (IF_CHAR_CLASSES(self->rec_parser.rep_syntax) &&
 			    (*self->rec_parser.rep_pos == ':')) {
 				/* character classes */
 				uint8_t cs_opcode;
@@ -1857,7 +2116,7 @@ loop_next:
 				cs_opcode = charset_find(csstart, (size_t)(csend - csstart));
 				if unlikely(cs_opcode == RECS_DONE)
 					return RE_ECTYPE;
-				if (self->rec_parser.rep_syntax & RE_SYNTAX_ICASE) {
+				if (IF_ICASE(self->rec_parser.rep_syntax)) {
 					/* Transform char-classes in ICASE-mode */
 					if (cs_opcode == RECS_ISUPPER || cs_opcode == RECS_ISLOWER || cs_opcode == RECS_ISTITLE)
 						cs_opcode = RECS_ISALNUM;
@@ -1895,7 +2154,7 @@ loop_next:
 			goto encode_literal;
 
 		case '\\':
-			if (self->rec_parser.rep_syntax & RE_SYNTAX_BACKSLASH_ESCAPE_IN_LISTS) {
+			if (IF_BACKSLASH_ESCAPE_IN_LISTS(self->rec_parser.rep_syntax)) {
 				/* Special case: backslash-escape sequences are allowed in character classes */
 				ch = (unsigned char)*self->rec_parser.rep_pos++;
 				assert(self->rec_parser.rep_pos - 1 <= self->rec_parser.rep_end);
@@ -1903,7 +2162,7 @@ loop_next:
 					--self->rec_parser.rep_pos;
 					return RE_EESCAPE;
 				}
-				if (!(self->rec_parser.rep_syntax & RE_SYNTAX_NO_KOS_OPS)) {
+				if (!IF_NO_KOS_OPS(self->rec_parser.rep_syntax)) {
 					switch (ch) {
 
 					case 'w':
@@ -1924,26 +2183,39 @@ loop_next:
 
 					case 'u':
 						if (*self->rec_parser.rep_pos == '{' &&
-						    !(self->rec_parser.rep_syntax & RE_SYNTAX_NO_UTF8)) {
+						    !(IF_NO_UTF8(self->rec_parser.rep_syntax))) {
 							/* Parse something like "\u{ABC DEF 123 456}"
 							 * -> same as "\u0ABC\u0DEF\u0123\u0456" */
-							errno_t parse_error;
 							++self->rec_parser.rep_pos;
+							while (ASCII_ISSPACE(*self->rec_parser.rep_pos))
+								++self->rec_parser.rep_pos;
 again_unicode_brace_char:
-							/* NOTE: Space is automatically skipped by `strtou32_r(3)'! */
-							lochar = strtou32_r(self->rec_parser.rep_pos,
-							                    (char **)&self->rec_parser.rep_pos,
-							                    16, &parse_error);
-							if unlikely(parse_error != 0) {
+							if (!__libc_hex2int(*self->rec_parser.rep_pos, &lochar)) {
 								if (self->rec_parser.rep_pos >= self->rec_parser.rep_end)
 									return RE_EEND;
 								return RE_EILLSEQ;
 							}
+							++self->rec_parser.rep_pos;
+							for (;;) {
+								uint8_t nibble;
+								if (!__libc_hex2int(*self->rec_parser.rep_pos, &nibble))
+									break;
+								if unlikely(OVERFLOW_UMUL(lochar, 16, &lochar))
+									return RE_EILLSEQ;
+								if unlikely(OVERFLOW_UADD(lochar, nibble, &lochar))
+									return RE_EILLSEQ;
+								++self->rec_parser.rep_pos;
+							}
+							if unlikely(lochar >= RE_TOKEN_BASE)
+								return RE_EILLSEQ;
 							if (*self->rec_parser.rep_pos != '}') {
 								/* Skip trailing space after unicode ordinals */
-								self->rec_parser.rep_pos = strlstrip(self->rec_parser.rep_pos);
+								while (ASCII_ISSPACE(*self->rec_parser.rep_pos))
+									++self->rec_parser.rep_pos;
 								if (*self->rec_parser.rep_pos != '}') {
 									re_errno_t addchar_error;
+									if unlikely(self->rec_parser.rep_pos >= self->rec_parser.rep_end)
+										return RE_EEND;
 									addchar_error = re_charset_adduchar(result, self, lochar);
 									if unlikely(addchar_error != RE_NOERROR)
 										return addchar_error;
@@ -1978,7 +2250,7 @@ encode_uchar_or_byte80h:
 
 		default:
 encode_literal:
-			if (ch >= 0x80 && !(self->rec_parser.rep_syntax & RE_SYNTAX_NO_UTF8)) {
+			if (ch >= 0x80 && !(IF_NO_UTF8(self->rec_parser.rep_syntax))) {
 				--self->rec_parser.rep_pos;
 				lochar = unicode_readutf8((char const **)&self->rec_parser.rep_pos); /* TODO: This doesn't handle EOF properly! */
 encode_uchar:
@@ -1999,11 +2271,11 @@ encode_unicode_range:
 					if (hichar < lochar) {
 handle_bad_unicode_range:
 						/* Bad range lo/hi bounds */
-						if (self->rec_parser.rep_syntax & RE_SYNTAX_NO_EMPTY_RANGES)
+						if (IF_NO_EMPTY_RANGES(self->rec_parser.rep_syntax))
 							return RE_ERANGE;
 						goto loop_next; /* Ignore range. */
 					}
-					if (self->rec_parser.rep_syntax & RE_SYNTAX_ICASE) {
+					if (IF_ICASE(self->rec_parser.rep_syntax)) {
 						lochar  = unicode_tolower(lochar);
 						hichar = unicode_tolower(hichar);
 						if unlikely(lochar > hichar)
@@ -2022,7 +2294,7 @@ handle_bad_unicode_range:
 
 				/* Add unicode character to unicode set. */
 add_lochar_to_unicode_charset:
-				if (self->rec_parser.rep_syntax & RE_SYNTAX_ICASE) {
+				if (IF_ICASE(self->rec_parser.rep_syntax)) {
 					char32_t chars[4];
 					chars[0] = lochar;
 					chars[1] = unicode_tolower(lochar);
@@ -2059,7 +2331,7 @@ encode_byte_ch:
 				if (hibyte < ch) {
 handle_bad_byte_range:
 					/* Bad range lo/hi bounds */
-					if (self->rec_parser.rep_syntax & RE_SYNTAX_NO_EMPTY_RANGES)
+					if (IF_NO_EMPTY_RANGES(self->rec_parser.rep_syntax))
 						return RE_ERANGE;
 					goto loop_next; /* Ignore range. */
 				}
@@ -2074,7 +2346,7 @@ done_loop:
 
 	/* In ASCII-mode, we're not allowed to encode char classes. Instead,
 	 * we have to essentially hard-code ctype attributes in the charset. */
-	if (self->rec_parser.rep_syntax & RE_SYNTAX_NO_UTF8) {
+	if (IF_NO_UTF8(self->rec_parser.rep_syntax)) {
 		int csid_offset;
 		assert(unicode_charset_isempty(&result->rc_uchars));
 		bit_foreach (csid_offset, result->rc_charclasses, CHARCLASS_COUNT) {
@@ -2084,7 +2356,7 @@ done_loop:
 				/* Can just copy attributes from `__ctype_C_flags' */
 				unsigned int i;
 do_copy_ctype_c_trait_mask:
-				for (i = 0; i < 256; ++i) {
+				for (i = 0; i < 128; ++i) { /* 128 instead of 256, because non-ASCII is always `0' */
 					if ((__ctype_C_flags[i] & ctype_c_trait_mask) != 0)
 						bit_set(result->rc_bytes, i);
 				}
@@ -2131,7 +2403,7 @@ do_copy_ctype_c_trait_mask:
 	}
 
 	/* In ICASE-mode, must merge the is-set state of 'A-Z' and 'a-z' in the ASCII area */
-	if (self->rec_parser.rep_syntax & RE_SYNTAX_ICASE) {
+	if (IF_ICASE(self->rec_parser.rep_syntax)) {
 		byte_t b;
 		for (b = 0x41; b <= 0x5a; ++b) {
 			if (bit_test(result->rc_bytes, b) || bit_test(result->rc_bytes, b | 0x20)) {
@@ -2142,9 +2414,9 @@ do_copy_ctype_c_trait_mask:
 	}
 
 	/* Implicitly exclude line-feeds from the charset. */
-	if ((self->rec_parser.rep_syntax & RE_SYNTAX_HAT_LISTS_NOT_NEWLINE) &&
+	if (IF_HAT_LISTS_NOT_NEWLINE(self->rec_parser.rep_syntax) &&
 	    (result->rc_negate)) {
-		if (self->rec_parser.rep_syntax & RE_SYNTAX_NO_UTF8) {
+		if (IF_NO_UTF8(self->rec_parser.rep_syntax)) {
 			bit_set(result->rc_bytes, 0x0a); /* '\n' */
 			bit_set(result->rc_bytes, 0x0d); /* '\r' */
 		} else {
@@ -2156,6 +2428,11 @@ do_copy_ctype_c_trait_mask:
 err_nomem:
 	return RE_ESPACE;
 }
+
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif /* _MSC_VER */
+
 
 
 PRIVATE WUNUSED NONNULL((1)) re_errno_t
@@ -2179,7 +2456,7 @@ NOTHROW_NCX(CC re_compiler_compile_charset)(struct re_compiler *__restrict self)
 
 	/* Figure out how we want to represent everything. */
 	if (cs.rc_negate) {
-		if (self->rec_parser.rep_syntax & RE_SYNTAX_NO_UTF8) {
+		if (IF_NO_UTF8(self->rec_parser.rep_syntax)) {
 			self->rec_cbase[start_offset] = REOP_CS_BYTE;
 			bit_flipall(cs.rc_bytes, 256);
 		} else {
@@ -2187,7 +2464,7 @@ NOTHROW_NCX(CC re_compiler_compile_charset)(struct re_compiler *__restrict self)
 			goto check_bytes_only_ascii;
 		}
 	} else {
-		if (self->rec_parser.rep_syntax & RE_SYNTAX_NO_UTF8) {
+		if (IF_NO_UTF8(self->rec_parser.rep_syntax)) {
 			self->rec_cbase[start_offset] = REOP_CS_BYTE;
 		} else if ((self->rec_cpos == self->rec_cbase + start_offset + 1) &&
 		           (cs.rc_uchars.ucs_count == 0) &&
@@ -2212,11 +2489,11 @@ check_bytes_only_ascii:
 		}
 	}
 
-	if (!(self->rec_parser.rep_syntax & RE_SYNTAX_NO_UTF8)) {
-		/* Encode `charclasses' (if in utf-8 mode) */
+	if (!(IF_NO_UTF8(self->rec_parser.rep_syntax))) {
+		/* Encode `cs.rc_charclasses' (if in utf-8 mode) */
 		int csid_offset;
 		bit_foreach (csid_offset, cs.rc_charclasses, CHARCLASS_COUNT) {
-			byte_t cs_opcode = RECS_ISX_MIN + csid_offset;
+			byte_t cs_opcode = (byte_t)(RECS_ISX_MIN + csid_offset);
 			if (!re_compiler_putc(self, cs_opcode))
 				goto err_nomem;
 			/* TODO: In non-cs.rc_negate-mode, try to clear the charset's bits from `bytes', so we don't
@@ -2235,9 +2512,9 @@ check_bytes_only_ascii:
 				if ((nbytes <= REOP_CONTAINS_UTF8_MAX_ASCII_COUNT) &&
 				    ((count + nbytes) <= 0xff)) {
 					/* Yes: we can use `REOP_[N]CONTAINS_UTF8'! */
-					self->rec_cpos[-1] = cs.rc_negate ? REOP_NCONTAINS_UTF8
-					                                  : REOP_CONTAINS_UTF8;
-					if (!re_compiler_putc(self, (byte_t)count + nbytes))
+					self->rec_cpos[-1] = cs.rc_negate ? (byte_t)REOP_NCONTAINS_UTF8
+					                                  : (byte_t)REOP_CONTAINS_UTF8;
+					if (!re_compiler_putc(self, (byte_t)(count + nbytes)))
 						goto err_nomem;
 					if (nbytes != 0) {
 						/* Include ASCII characters in the CONTAINS-match. */
@@ -2320,14 +2597,16 @@ check_bytes_only_ascii:
 			if (rangelen == 1) {
 				/* The entire set matches only a single byte, specific. */
 				assert(range_lo == range_hi);
-				self->rec_cpos[-1] = cs.rc_negate ? REOP_NBYTE : REOP_BYTE;
+				self->rec_cpos[-1] = cs.rc_negate ? (byte_t)REOP_NBYTE
+				                                  : (byte_t)REOP_BYTE;
 				if (!re_compiler_putc(self, range_lo))
 					goto err_nomem;
 				goto done;
 			} else if (rangelen == 2) {
 				/* The entire set matches only 2 different bytes. */
 				assert(range_lo + 1 == range_hi);
-				self->rec_cpos[-1] = cs.rc_negate ? REOP_NBYTE2 : REOP_BYTE2;
+				self->rec_cpos[-1] = cs.rc_negate ? (byte_t)REOP_NBYTE2
+				                                  : (byte_t)REOP_BYTE2;
 				if (!re_compiler_putc(self, range_lo))
 					goto err_nomem;
 				if (!re_compiler_putc(self, range_hi))
@@ -2336,7 +2615,8 @@ check_bytes_only_ascii:
 			} else {
 				/* The entire set matches only a specific range of bytes */
 				assert(range_lo + 1 == range_hi);
-				self->rec_cpos[-1] = cs.rc_negate ? REOP_NRANGE : REOP_RANGE;
+				self->rec_cpos[-1] = cs.rc_negate ? (byte_t)REOP_NRANGE
+				                                  : (byte_t)REOP_RANGE;
 				if (!re_compiler_putc(self, range_lo))
 					goto err_nomem;
 				if (!re_compiler_putc(self, range_hi))
@@ -2353,10 +2633,11 @@ check_bytes_only_ascii:
 			/* At this point, we know that `range_lo' and `b' are part of the set.
 			 * -> If these are the only 2, then we can generate `REOP_[N]BYTE2'. */
 			if (b >= 0xff || !bit_nanyset(cs.rc_bytes, b + 1, 0xff)) {
-				self->rec_cpos[-1] = cs.rc_negate ? REOP_NBYTE2 : REOP_BYTE2;
+				self->rec_cpos[-1] = cs.rc_negate ? (byte_t)REOP_NBYTE2
+				                                  : (byte_t)REOP_BYTE2;
 				if (!re_compiler_putc(self, range_lo))
 					goto err_nomem;
-				if (!re_compiler_putc(self, b))
+				if (!re_compiler_putc(self, (byte_t)b))
 					goto err_nomem;
 				goto done;
 			}
@@ -2376,8 +2657,8 @@ check_bytes_only_ascii:
 	{
 		byte_t cs_opcode;
 		byte_t minset, maxset, base, num_bits, num_bytes;
-		minset    = 0x00 + bit_clz(cs.rc_bytes);
-		maxset    = 0xff - bit_ctz(cs.rc_bytes, 256);
+		minset    = (byte_t)(0x00 + bit_clz(cs.rc_bytes));
+		maxset    = (byte_t)(0xff - bit_ctz(cs.rc_bytes, 256));
 		base      = RECS_BITSET_BASEFOR(minset);
 		num_bits  = (maxset + 1) - base;
 		num_bytes = CEILDIV(num_bits, 8);
@@ -2469,26 +2750,26 @@ again:
 		return RE_EILLSEQ;
 
 	case RE_TOKEN_STARTINTERVAL:
-		if (self->rec_parser.rep_syntax & (RE_SYNTAX_CONTEXT_INVALID_DUP |
-		                                   RE_SYNTAX_CONTEXT_INVALID_OPS))
+		if (IF_CONTEXT_INVALID_DUP(self->rec_parser.rep_syntax) ||
+		    IF_CONTEXT_INVALID_OPS(self->rec_parser.rep_syntax))
 			return RE_BADRPT;
 		tok = '{';
 		goto do_literal;
 
 	case RE_TOKEN_PLUS:
-		if (self->rec_parser.rep_syntax & RE_SYNTAX_CONTEXT_INVALID_OPS)
+		if (IF_CONTEXT_INVALID_OPS(self->rec_parser.rep_syntax))
 			return RE_BADRPT;
 		tok = '+';
 		goto do_literal;
 
 	case RE_TOKEN_STAR:
-		if (self->rec_parser.rep_syntax & RE_SYNTAX_CONTEXT_INVALID_OPS)
+		if (IF_CONTEXT_INVALID_OPS(self->rec_parser.rep_syntax))
 			return RE_BADRPT;
 		tok = '*';
 		goto do_literal;
 
 	case RE_TOKEN_QMARK:
-		if (self->rec_parser.rep_syntax & RE_SYNTAX_CONTEXT_INVALID_OPS)
+		if (IF_CONTEXT_INVALID_OPS(self->rec_parser.rep_syntax))
 			return RE_BADRPT;
 		tok = '?';
 		goto do_literal;
@@ -2501,15 +2782,19 @@ again:
 		re_errno_t error;
 		uint8_t gid;
 		byte_t *body;
+#ifdef RE_SYNTAX_UNMATCHED_RIGHT_PAREN_ORD
 		uintptr_t old_syntax;
+#endif /* RE_SYNTAX_UNMATCHED_RIGHT_PAREN_ORD */
 
 		if unlikely(self->rec_code->rc_ngrps >= 0x100)
 			return RE_ESIZE; /* Too many groups */
-		gid = self->rec_code->rc_ngrps++;
+		gid = (byte_t)(self->rec_code->rc_ngrps++);
 
 		/* We're inside of a group, so ')' are no longer literals! */
+#ifdef RE_SYNTAX_UNMATCHED_RIGHT_PAREN_ORD
 		old_syntax = self->rec_parser.rep_syntax;
 		self->rec_parser.rep_syntax &= ~RE_SYNTAX_UNMATCHED_RIGHT_PAREN_ORD;
+#endif /* RE_SYNTAX_UNMATCHED_RIGHT_PAREN_ORD */
 
 		/* Optimization: "(a|b)" normally compiles as:
 		 * >> 0x0000:    REOP_GROUP_START 0
@@ -2572,7 +2857,9 @@ do_group_start_without_alternation:
 
 		/* Restore old syntax behavior for  ')' being a literal or  not.
 		 * s.a. us clearing `RE_SYNTAX_UNMATCHED_RIGHT_PAREN_ORD' above. */
+#ifdef RE_SYNTAX_UNMATCHED_RIGHT_PAREN_ORD
 		self->rec_parser.rep_syntax = old_syntax;
+#endif /* RE_SYNTAX_UNMATCHED_RIGHT_PAREN_ORD */
 
 		/* Mark the end of the group (this opcode may be overwritten later) */
 		if (!re_compiler_putc(self, REOP_GROUP_END))
@@ -2607,7 +2894,7 @@ do_group_start_without_alternation:
 
 	case RE_TOKEN_BK_w:
 	case RE_TOKEN_BK_W: {
-		if (self->rec_parser.rep_syntax & RE_SYNTAX_NO_UTF8) {
+		if (IF_NO_UTF8(self->rec_parser.rep_syntax)) {
 			static byte_t const issymcont_y_code[] = {
 				REOP_CS_BYTE,
 				RECS_BITSET_BUILD(0x20, 12),
@@ -2766,8 +3053,8 @@ do_group_start_without_alternation:
 					goto err_nomem;
 			}
 		} else {
-			if (!re_compiler_putc(self, tok == RE_TOKEN_BK_W ? REOP_NCS_UTF8
-			                                                 : REOP_CS_UTF8))
+			if (!re_compiler_putc(self, tok == RE_TOKEN_BK_W ? (byte_t)REOP_NCS_UTF8
+			                                                 : (byte_t)REOP_CS_UTF8))
 				goto err_nomem;
 			if (!re_compiler_putc(self, RECS_ISSYMCONT))
 				goto err_nomem;
@@ -2779,7 +3066,7 @@ do_group_start_without_alternation:
 
 	case RE_TOKEN_BK_s:
 	case RE_TOKEN_BK_S: {
-		if (self->rec_parser.rep_syntax & RE_SYNTAX_NO_UTF8) {
+		if (IF_NO_UTF8(self->rec_parser.rep_syntax)) {
 			static byte_t const isspace_y_code[] = {
 				REOP_CS_BYTE,
 				RECS_BITSET_BUILD(0x00, 5),
@@ -2827,7 +3114,8 @@ do_group_start_without_alternation:
 					goto err_nomem;
 			}
 		} else {
-			if (!re_compiler_putc(self, (tok == RE_TOKEN_BK_W) ? REOP_NCS_UTF8 : REOP_CS_UTF8))
+			if (!re_compiler_putc(self, (tok == RE_TOKEN_BK_W) ? (byte_t)REOP_NCS_UTF8
+			                                                   : (byte_t)REOP_CS_UTF8))
 				goto err_nomem;
 			if (!re_compiler_putc(self, RECS_ISSPACE))
 				goto err_nomem;
@@ -2839,15 +3127,17 @@ do_group_start_without_alternation:
 
 	case RE_TOKEN_BK_d:
 	case RE_TOKEN_BK_D: {
-		if (self->rec_parser.rep_syntax & RE_SYNTAX_NO_UTF8) {
-			if (!re_compiler_putc(self, (tok == RE_TOKEN_BK_D) ? REOP_NRANGE : REOP_RANGE))
+		if (IF_NO_UTF8(self->rec_parser.rep_syntax)) {
+			if (!re_compiler_putc(self, (tok == RE_TOKEN_BK_D) ? (byte_t)REOP_NRANGE
+			                                                   : (byte_t)REOP_RANGE))
 				goto err_nomem;
 			if (!re_compiler_putc(self, (byte_t)0x30)) /* '0' */
 				goto err_nomem;
 			if (!re_compiler_putc(self, (byte_t)0x39)) /* '9' */
 				goto err_nomem;
 		} else {
-			if (!re_compiler_putc(self, (tok == RE_TOKEN_BK_D) ? REOP_NCS_UTF8 : REOP_CS_UTF8))
+			if (!re_compiler_putc(self, (tok == RE_TOKEN_BK_D) ? (byte_t)REOP_NCS_UTF8
+			                                                   : (byte_t)REOP_CS_UTF8))
 				goto err_nomem;
 			if (!re_compiler_putc(self, RECS_ISDIGIT))
 				goto err_nomem;
@@ -2859,15 +3149,17 @@ do_group_start_without_alternation:
 
 	case RE_TOKEN_BK_n:
 	case RE_TOKEN_BK_N: {
-		if (self->rec_parser.rep_syntax & RE_SYNTAX_NO_UTF8) {
-			if (!re_compiler_putc(self, (tok == RE_TOKEN_BK_N) ? REOP_NBYTE2 : REOP_BYTE2))
+		if (IF_NO_UTF8(self->rec_parser.rep_syntax)) {
+			if (!re_compiler_putc(self, (tok == RE_TOKEN_BK_N) ? (byte_t)REOP_NBYTE2
+			                                                   : (byte_t)REOP_BYTE2))
 				goto err_nomem;
 			if (!re_compiler_putc(self, (byte_t)0x0a)) /* '\n' */
 				goto err_nomem;
 			if (!re_compiler_putc(self, (byte_t)0x0d)) /* '\r' */
 				goto err_nomem;
 		} else {
-			if (!re_compiler_putc(self, (tok == RE_TOKEN_BK_N) ? REOP_NCS_UTF8 : REOP_CS_UTF8))
+			if (!re_compiler_putc(self, (tok == RE_TOKEN_BK_N) ? (byte_t)REOP_NCS_UTF8
+			                                                   : (byte_t)REOP_CS_UTF8))
 				goto err_nomem;
 			if (!re_compiler_putc(self, RECS_ISLF))
 				goto err_nomem;
@@ -2887,33 +3179,39 @@ do_group_start_without_alternation:
 		static_assert(REOP_MAKEANY(true, false, true) == REOP_ANY_NOTLF_UTF8);
 		static_assert(REOP_MAKEANY(true, true, false) == REOP_ANY);
 		static_assert(REOP_MAKEANY(true, true, true) == REOP_ANY_UTF8);
-		opcode = REOP_MAKEANY(!(self->rec_parser.rep_syntax & RE_SYNTAX_DOT_NOT_NULL),
-		                      self->rec_parser.rep_syntax & RE_SYNTAX_DOT_NEWLINE,
-		                      !(self->rec_parser.rep_syntax & RE_SYNTAX_NO_UTF8));
+		opcode = REOP_MAKEANY(!IF_DOT_NOT_NULL(self->rec_parser.rep_syntax),
+		                      IF_DOT_NEWLINE(self->rec_parser.rep_syntax),
+		                      !IF_NO_UTF8(self->rec_parser.rep_syntax));
 		alternation_prefix_dump();
 		if (!re_compiler_putc(self, opcode))
 			goto err_nomem;
 		goto done_prefix;
 	}
 
-	case RE_TOKEN_AT_MIN ... RE_TOKEN_AT_MAX: {
+	case_RE_TOKEN_AT_MIN_to_MAX: {
 		static uint8_t const at_opcodes[(RE_TOKEN_AT_MAX - RE_TOKEN_AT_MIN) + 1][2] = {
-			[(RE_TOKEN_AT_SOL - RE_TOKEN_AT_MIN)]     = { REOP_AT_SOI, REOP_AT_SOI },
-			[(RE_TOKEN_AT_EOL - RE_TOKEN_AT_MIN)]     = { REOP_AT_EOI, REOP_AT_EOI },
-			[(RE_TOKEN_AT_SOI - RE_TOKEN_AT_MIN)]     = { REOP_AT_SOL, REOP_AT_SOL_UTF8 },
-			[(RE_TOKEN_AT_EOI - RE_TOKEN_AT_MIN)]     = { REOP_AT_EOL, REOP_AT_EOL_UTF8 },
-			[(RE_TOKEN_AT_WOB - RE_TOKEN_AT_MIN)]     = { REOP_AT_WOB, REOP_AT_WOB_UTF8 },
-			[(RE_TOKEN_AT_WOB_NOT - RE_TOKEN_AT_MIN)] = { REOP_AT_WOB_NOT, REOP_AT_WOB_UTF8_NOT },
-			[(RE_TOKEN_AT_SOW - RE_TOKEN_AT_MIN)]     = { REOP_AT_SOW, REOP_AT_SOW_UTF8 },
-			[(RE_TOKEN_AT_EOW - RE_TOKEN_AT_MIN)]     = { REOP_AT_EOW, REOP_AT_EOW_UTF8 },
-			[(RE_TOKEN_AT_SOS - RE_TOKEN_AT_MIN)]     = { REOP_AT_SOS, REOP_AT_SOS_UTF8 },
-			[(RE_TOKEN_AT_EOS - RE_TOKEN_AT_MIN)]     = { REOP_AT_EOS, REOP_AT_EOS_UTF8 },
+#ifdef __GNUC__
+#define DEF_OPCODE_PAIR(token, op, op_utf8) [(token - RE_TOKEN_AT_MIN)] = { op, op_utf8 }
+#else /* __GNUC__ */
+#define DEF_OPCODE_PAIR(token, op, op_utf8) /*[(token - RE_TOKEN_AT_MIN)] =*/ { op, op_utf8 }
+#endif /* !__GNUC__ */
+			DEF_OPCODE_PAIR(RE_TOKEN_AT_SOL, REOP_AT_SOI, REOP_AT_SOI),
+			DEF_OPCODE_PAIR(RE_TOKEN_AT_EOL, REOP_AT_EOI, REOP_AT_EOI),
+			DEF_OPCODE_PAIR(RE_TOKEN_AT_SOI, REOP_AT_SOL, REOP_AT_SOL_UTF8),
+			DEF_OPCODE_PAIR(RE_TOKEN_AT_EOI, REOP_AT_EOL, REOP_AT_EOL_UTF8),
+			DEF_OPCODE_PAIR(RE_TOKEN_AT_WOB, REOP_AT_WOB, REOP_AT_WOB_UTF8),
+			DEF_OPCODE_PAIR(RE_TOKEN_AT_WOB_NOT, REOP_AT_WOB_NOT, REOP_AT_WOB_UTF8_NOT),
+			DEF_OPCODE_PAIR(RE_TOKEN_AT_SOW, REOP_AT_SOW, REOP_AT_SOW_UTF8),
+			DEF_OPCODE_PAIR(RE_TOKEN_AT_EOW, REOP_AT_EOW, REOP_AT_EOW_UTF8),
+			DEF_OPCODE_PAIR(RE_TOKEN_AT_SOS, REOP_AT_SOS, REOP_AT_SOS_UTF8),
+			DEF_OPCODE_PAIR(RE_TOKEN_AT_EOS, REOP_AT_EOS, REOP_AT_EOS_UTF8),
+#undef DEF_OPCODE_PAIR
 		};
 		uint8_t opcode = at_opcodes[tok - RE_TOKEN_AT_MIN]
-		                           [(self->rec_parser.rep_syntax & RE_SYNTAX_NO_UTF8) ? 0 : 1];
+		                           [(IF_NO_UTF8(self->rec_parser.rep_syntax)) ? 0 : 1];
 
 		/* Deal with special handling for '^' and '$' */
-		if (REOP_AT_SOLEOL_CHECK(opcode) && !(self->rec_parser.rep_syntax & RE_SYNTAX_ANCHORS_IGNORE_EFLAGS))
+		if (REOP_AT_SOLEOL_CHECK(opcode) && !IF_ANCHORS_IGNORE_EFLAGS(self->rec_parser.rep_syntax))
 			opcode = REOP_AT_SOLEOL_MAKEX(opcode);
 
 		/* `REOP_AT_*' qualify for being written as alternation prefixes! */
@@ -2935,8 +3233,8 @@ do_group_start_without_alternation:
 		goto again;
 	}
 
-	case RE_TOKEN_BKREF_1 ... RE_TOKEN_BKREF_9: {
-		uint8_t gid = tok - RE_TOKEN_BKREF_1;
+	case_RE_TOKEN_BKREF_1_to_9: {
+		uint8_t gid = (uint8_t)(tok - RE_TOKEN_BKREF_1);
 		uint8_t ginfo;
 		assert(gid <= 8); /* 1-9 --> 9 groups -> 0-based index must be <= 8 */
 		ginfo = self->rec_grpinfo[gid];
@@ -3006,7 +3304,7 @@ do_literal:
 				literal_seq_end     = self->rec_parser.rep_pos;
 				++literal_seq_length;
 			}
-			if (self->rec_parser.rep_syntax & RE_SYNTAX_NO_UTF8)
+			if (IF_NO_UTF8(self->rec_parser.rep_syntax))
 				literal_seq_isutf8 = false; /* They're always just bytes! */
 
 			/* Encode the literal sequence */
@@ -3810,7 +4108,7 @@ NOTHROW_NCX(CC libre_compiler_compile)(struct re_compiler *__restrict self) {
 
 	/* Terminate the expression with a `REOP_MATCHED' opcode */
 	finish_opcode = REOP_MATCHED;
-	if (self->rec_parser.rep_syntax & RE_SYNTAX_NO_POSIX_BACKTRACKING)
+	if (IF_NO_POSIX_BACKTRACKING(self->rec_parser.rep_syntax))
 		finish_opcode = REOP_MATCHED_PERFECT;
 	if (!re_compiler_putc(self, finish_opcode))
 		goto err_nomem;
@@ -3848,7 +4146,7 @@ err:
 
 
 
-#ifndef NDEBUG
+#if !defined(LIBREGEX_NO_RE_CODE_DISASM) && !defined(NDEBUG)
 /* Print a disassembly of `self' (for debugging) */
 INTERN NONNULL((1)) ssize_t
 NOTHROW_NCX(CC libre_code_disasm)(struct re_code const *__restrict self,
@@ -4033,7 +4331,7 @@ NOTHROW_NCX(CC libre_code_disasm)(struct re_code const *__restrict self,
 					pc = cs_opcode_end;
 				}	break;
 
-				case RECS_ISX_MIN ... RECS_ISX_MAX: {
+				case_RECS_ISX_MIN_to_MAX: {
 					char const *cs_name;
 					if (opcode == REOP_CS_BYTE)
 						goto do_cs_bitset;
@@ -4158,7 +4456,7 @@ do_cs_bitset:
 			printf("group_match %" PRIu8, gid);
 		}	break;
 
-		case REOP_GROUP_MATCH_JMIN ... REOP_GROUP_MATCH_JMAX: {
+		case_REOP_GROUP_MATCH_JMIN_to_JMAX: {
 			uint8_t gid       = *pc++;
 			byte_t const *jmp = pc + REOP_GROUP_MATCH_Joff(opcode);
 			printf("group_match %" PRIu8 ", @%#.4" PRIxSIZ,
@@ -4175,7 +4473,7 @@ do_cs_bitset:
 			printf("group_end %" PRIu8, gid);
 		}	break;
 
-		case REOP_GROUP_END_JMIN ... REOP_GROUP_END_JMAX: {
+		case_REOP_GROUP_END_JMIN_to_JMAX: {
 			uint8_t gid       = *pc++;
 			byte_t const *jmp = pc + REOP_GROUP_END_Joff(opcode);
 			printf("group_end %" PRIu8 ", @%#.4" PRIxSIZ,
@@ -4287,14 +4585,21 @@ err:
 #undef PRINT
 #undef DO
 }
-#endif /* !NDEBUG */
+#endif /* !LIBREGEX_NO_RE_CODE_DISASM && !NDEBUG */
 
 
 
+#undef tswap
+#undef delta16_set
+#undef delta16_get
+#undef DBG_memset
 #undef re_parser_yield
+
 DEFINE_PUBLIC_ALIAS(re_parser_yield, libre_parser_yield);
 DEFINE_PUBLIC_ALIAS(re_compiler_compile, libre_compiler_compile);
+#if !defined(LIBREGEX_NO_RE_CODE_DISASM) && !defined(NDEBUG)
 DEFINE_PUBLIC_ALIAS(re_code_disasm, libre_code_disasm);
+#endif /* !LIBREGEX_NO_RE_CODE_DISASM && !NDEBUG */
 
 DECL_END
 

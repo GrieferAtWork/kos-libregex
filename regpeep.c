@@ -32,6 +32,8 @@ gcc_opt.append("-Os");
 
 #include "api.h"
 /**/
+
+#ifndef LIBREGEX_NO_SYSTEM_INCLUDES
 #include <hybrid/compiler.h>
 
 #include <hybrid/unaligned.h>
@@ -49,16 +51,20 @@ gcc_opt.append("-Os");
 
 #include <libregex/regcomp.h>
 
-#include "regcomp.h"
-#include "regpeep.h"
-
 #if 0
 #include <sys/syslog.h>
 #define HAVE_TRACE
 #define TRACE(...) syslog(LOG_DEBUG, __VA_ARGS__)
-#else
-#define TRACE(...) (void)0
 #endif
+#endif /* !LIBREGEX_NO_SYSTEM_INCLUDES */
+
+#include "regcomp.h"
+#include "regpeep.h"
+
+#ifndef TRACE
+#undef HAVE_TRACE
+#define TRACE(...) (void)0
+#endif /* !TRACE */
 
 DECL_BEGIN
 
@@ -79,7 +85,7 @@ DECL_BEGIN
 #define getb() (*pc++)
 #define getw() (pc += 2, delta16_get(pc - 2))
 
-INTDEF ATTR_RETNONNULL WUNUSED NONNULL((1)) byte_t * /* from "./regcomp.c" */
+INTDEF ATTR_PURE ATTR_RETNONNULL WUNUSED NONNULL((1)) byte_t * /* from "./regcomp.c" */
 NOTHROW_NCX(CC libre_opcode_next)(byte_t const *__restrict p_instr);
 
 struct re_mini_interpreter {
@@ -107,7 +113,7 @@ NOTHROW_NCX(CC re_mini_interpreter_exact_readutf8)(struct re_mini_interpreter *_
 	char32_t result;
 	char const *uptr = (char const *)self->rmi_exact_data;
 	result = unicode_readutf8_n(&uptr, uptr + self->rmi_exact_nrem);
-	self->rmi_exact_nrem -= ((byte_t const *)uptr - self->rmi_exact_data);
+	self->rmi_exact_nrem -= (uint8_t)(size_t)((byte_t const *)uptr - self->rmi_exact_data);
 	self->rmi_exact_data = (byte_t const *)uptr;
 	return result;
 }
@@ -155,12 +161,12 @@ again:
 
 	case REOP_GROUP_START:
 	case REOP_GROUP_END:
-	case REOP_GROUP_END_JMIN ... REOP_GROUP_END_JMAX:
+	case_REOP_GROUP_END_JMIN_to_JMAX:
 		/* Don't care about groups */
 		++pc;
 		goto again;
 
-	case REOP_AT_MIN ... REOP_AT_MAX:
+	case_REOP_AT_MIN_to_MAX:
 		/* REOP_AT_* opcodes aren't enough to say for certain that branches never match.
 		 * There are some cases where they could say so (e.g. when both branches specify
 		 * AT-instructions that mutually exclusive), but  that's too complicated for  us
@@ -348,7 +354,7 @@ again:
 	 */
 	switch (opcode1) {
 
-	case REOP_ANY_MIN ... REOP_ANY_MAX:
+	case_REOP_ANY_MIN_to_MAX:
 		int1->rmi_pc += 1;
 		switch (opcode2) {
 
@@ -375,7 +381,7 @@ again:
 			--int2->rmi_exact_nrem;
 			goto again;
 
-		case REOP_ANY_MIN ... REOP_ANY_MAX:
+		case_REOP_ANY_MIN_to_MAX:
 		case REOP_NBYTE:
 		case REOP_BYTE2:
 		case REOP_NBYTE2:
@@ -557,7 +563,7 @@ compare_ascii_utf8_icase_exact:
 		case REOP_EXACT_UTF8_ICASE:
 			goto compare_ascii_utf8_icase_exact;
 
-		case REOP_ANY_MIN ... REOP_ANY_MAX:
+		case_REOP_ANY_MIN_to_MAX:
 			++int1->rmi_exact_data;
 			--int1->rmi_exact_nrem;
 			int2->rmi_pc += 1;
@@ -568,13 +574,13 @@ compare_ascii_utf8_icase_exact:
 		case REOP_NBYTE2: {
 			byte_t b1;
 			b1 = *int1->rmi_exact_data++;
-			b1 = tolower(b1);
+			b1 = (byte_t)tolower(b1);
 			--int1->rmi_exact_nrem;
 			switch (opcode2) {
 			case REOP_NBYTE: {
 				byte_t b2;
 				b2 = *int2->rmi_pc++;
-				b2 = tolower(b2);
+				b2 = (byte_t)tolower(b2);
 				if (b1 == b2)
 					return false; /* "(f|[^f])" -> no input can match both */
 				goto again;
@@ -584,8 +590,8 @@ compare_ascii_utf8_icase_exact:
 				++int2->rmi_pc;
 				b2_1 = *int2->rmi_pc++;
 				b2_2 = *int2->rmi_pc++;
-				b2_1 = tolower(b2_1);
-				b2_2 = tolower(b2_2);
+				b2_1 = (byte_t)tolower(b2_1);
+				b2_2 = (byte_t)tolower(b2_2);
 				if (b1 != b2_1 && b1 != b2_2)
 					return false; /* "(f|[gh])" -> no input can match both */
 				goto again;
@@ -595,8 +601,8 @@ compare_ascii_utf8_icase_exact:
 				++int2->rmi_pc;
 				b2_1 = *int2->rmi_pc++;
 				b2_2 = *int2->rmi_pc++;
-				b2_1 = tolower(b2_1);
-				b2_2 = tolower(b2_2);
+				b2_1 = (byte_t)tolower(b2_1);
+				b2_2 = (byte_t)tolower(b2_2);
 				if (b1 == b2_1 || b1 == b2_2)
 					return false; /* "(f|[^f])" -> no input can match both */
 				goto again;
@@ -634,7 +640,7 @@ compare_ascii_utf8_icase_exact:
 		case REOP_EXACT_UTF8_ICASE:
 			goto compare_ascii_icase_exact;
 
-		case REOP_ANY_MIN ... REOP_ANY_MAX:
+		case_REOP_ANY_MIN_to_MAX:
 			int1->rmi_exact_data += unicode_utf8seqlen[*int1->rmi_exact_data];
 			--int1->rmi_exact_nrem;
 			int2->rmi_pc += 1;
@@ -678,7 +684,7 @@ compare_ascii_utf8_icase_exact:
 				int1->rmi_pc -= 2;
 				goto int2_after_exact_data;
 			}
-			if (tolower(int1_nbyte) == tolower(*int2->rmi_exact_data))
+			if ((byte_t)tolower(int1_nbyte) == (byte_t)tolower(*int2->rmi_exact_data))
 				return false; /* "([^x]|xyz)" */
 			++int2->rmi_exact_data;
 			--int2->rmi_exact_nrem;
@@ -696,7 +702,7 @@ compare_ascii_utf8_icase_exact:
 			goto again;
 		}
 
-		case REOP_ANY_MIN ... REOP_ANY_MAX:
+		case_REOP_ANY_MIN_to_MAX:
 			int2->rmi_pc += 1;
 			goto again;
 
@@ -1007,8 +1013,8 @@ again:
 	opcode = getb();
 	switch (opcode) {
 
-	case REOP_GROUP_MATCH_JMIN ... REOP_GROUP_MATCH_JMAX:
-	case REOP_GROUP_END_JMIN ... REOP_GROUP_END_JMAX: {
+	case_REOP_GROUP_MATCH_JMIN_to_JMAX:
+	case_REOP_GROUP_END_JMIN_to_JMAX: {
 		byte_t old_delta, new_delta;
 		byte_t *skip_maxpc;
 		old_delta = (opcode >= REOP_GROUP_MATCH_JMIN && opcode <= REOP_GROUP_MATCH_JMAX)
@@ -1229,6 +1235,16 @@ NOTHROW_NCX(CC libre_compiler_peephole)(struct re_compiler *__restrict self) {
 	 * unaligned reads currently done by `getw()' in "./regexec.c".
 	 */
 }
+
+#undef HAVE_TRACE
+#undef TRACE
+
+#undef getw
+#undef getb
+#undef delta16_set
+#undef delta16_get
+#undef RANGES_OVERLAP
+#undef tswap
 
 DECL_END
 

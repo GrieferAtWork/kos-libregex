@@ -22,6 +22,7 @@
 
 #include "api.h"
 
+#ifndef LIBREGEX_NO_SYSTEM_INCLUDES
 #include <hybrid/compiler.h>
 
 #include <kos/types.h>
@@ -31,6 +32,7 @@
 #ifndef NDEBUG
 #include <format-printer.h>
 #endif /* !NDEBUG */
+#endif /* !LIBREGEX_NO_SYSTEM_INCLUDES */
 
 DECL_BEGIN
 
