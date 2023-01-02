@@ -2660,7 +2660,8 @@ check_bytes_only_ascii:
 	/* No special encoding is possible -> must instead use `RECS_BITSET_MIN'! */
 	{
 		byte_t cs_opcode;
-		byte_t minset, maxset, base, num_bits, num_bytes;
+		byte_t minset, maxset, base, num_bytes;
+		uint16_t num_bits;
 		minset    = (byte_t)(0x00 + bit_clz(cs.rc_bytes));
 		maxset    = (byte_t)(0xff - bit_ctz(cs.rc_bytes, 256));
 		base      = RECS_BITSET_BASEFOR(minset);
