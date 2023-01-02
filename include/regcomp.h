@@ -732,8 +732,8 @@ typedef __uint32_t re_token_t;
 #define RE_TOKEN_AT_MIN         RE_TOKEN_AT_SOL
 #define RE_TOKEN_AT_SOL         (RE_TOKEN_XBASE + 18) /* "^" */
 #define RE_TOKEN_AT_EOL         (RE_TOKEN_XBASE + 19) /* "$" */
-#define RE_TOKEN_AT_SOI         (RE_TOKEN_XBASE + 20) /* "\`" */
-#define RE_TOKEN_AT_EOI         (RE_TOKEN_XBASE + 21) /* "\'" */
+#define RE_TOKEN_AT_SOI         (RE_TOKEN_XBASE + 20) /* "\`", "\A" */
+#define RE_TOKEN_AT_EOI         (RE_TOKEN_XBASE + 21) /* "\'", "\Z" */
 #define RE_TOKEN_AT_WOB         (RE_TOKEN_XBASE + 22) /* "\b" */
 #define RE_TOKEN_AT_WOB_NOT     (RE_TOKEN_XBASE + 23) /* "\B" */
 #define RE_TOKEN_AT_SOW         (RE_TOKEN_XBASE + 24) /* "\<" */

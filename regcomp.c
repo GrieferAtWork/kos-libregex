@@ -613,15 +613,15 @@ NOTHROW_NCX(CC libre_parser_yield)(struct re_parser *__restrict self) {
 			return RE_TOKEN_AT_SOL; /* Always special at start of pattern */
 		if (self->rep_pos[-1] == '(') {
 			/* Also special if following a non-escaped open-group */
-			bool is_escaled = false;
+			bool is_escaped  = false;
 			char const *iter = self->rep_pos - 2;
 			while (iter >= self->rep_pat && *iter == '\\') {
 				--iter;
-				is_escaled = !is_escaled;
+				is_escaped = !is_escaped;
 			}
 			if (!IF_NO_BK_PARENS(self->rep_syntax))
-				is_escaled = !is_escaled; /* Invert meaning of escaped vs. non-escaped */
-			if (!is_escaled) {
+				is_escaped = !is_escaped; /* Invert meaning of escaped vs. non-escaped */
+			if (!is_escaped) {
 				/* '^' is following a non-escaped '(' -> it's an AT-marker! */
 				return RE_TOKEN_AT_SOL;
 			}
