@@ -773,6 +773,8 @@ __NOTHROW_NCX(LIBREGEX_CC re_parser_yield)(struct re_parser *__restrict self);
 
 
 /* The compiled regex output structure produced by `re_compiler_compile(3R)' */
+#ifndef __re_code_defined
+#define __re_code_defined
 struct re_code {
 	__byte_t   rc_fmap[256]; /* Fast map: take the first byte of input data to match as index:
 	                          * - rc_fmap[input[0]] == 0xff --> input will never match
@@ -798,6 +800,7 @@ struct re_code {
 #define RE_CODE_FLAG_OPTGROUPS  0x02 /* The regex code contains optional groups (e.g. "foo(x)?bar" or "foo(|b(a)r)") */
 	__COMPILER_FLEXIBLE_ARRAY(__byte_t, rc_code); /* Code buffer (`REOP_*' instruction stream) */
 };
+#endif /* !__re_code_defined */
 
 
 /* Regex compiler structure */

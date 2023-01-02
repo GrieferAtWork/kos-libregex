@@ -2383,8 +2383,8 @@ NOTHROW_NCX(CC libre_exec_search)(struct re_exec const *__restrict exec,
 		return -RE_NOMATCH; /* Buffer is to small to ever match */
 
 	/* Clamp the max possible search area */
-	if (search_range > total_left)
-		search_range = total_left;
+	if (search_range > total_left + 1) /* +1, so the last search is still performed (e.g. "x".refind("[[:lower:]]")) */
+		search_range = total_left + 1;
 	if unlikely(!search_range)
 		return -RE_NOMATCH; /* Not supposed to do any searches? -- OK then... */
 
@@ -2404,7 +2404,7 @@ NOTHROW_NCX(CC libre_exec_search)(struct re_exec const *__restrict exec,
 			/* Set success result values if we didn't get here due to an error. */
 			if likely(result == -RE_NOERROR) {
 				if (p_match_size != NULL)
-					*p_match_size = re_interpreter_in_curoffset(interp) - exec->rx_startoff;
+					*p_match_size = re_interpreter_in_curoffset(interp) - match_offset;
 				result = (ssize_t)match_offset;
 				re_interpreter_copy_match(interp);
 			}
@@ -2444,8 +2444,8 @@ NOTHROW_NCX(CC libre_exec_rsearch)(struct re_exec const *__restrict exec,
 		return -RE_NOMATCH; /* Buffer is to small to ever match */
 
 	/* Clamp the max possible search area */
-	if (search_range > total_left)
-		search_range = total_left;
+	if (search_range > total_left + 1) /* +1, so the last search is still performed (e.g. "x".refind("[[:lower:]]")) */
+		search_range = total_left + 1;
 	if unlikely(!search_range)
 		return -RE_NOMATCH; /* Not supposed to do any searches? -- OK then... */
 
@@ -2466,7 +2466,7 @@ NOTHROW_NCX(CC libre_exec_rsearch)(struct re_exec const *__restrict exec,
 			/* Set success result values if we didn't get here due to an error. */
 			if likely(result == -RE_NOERROR) {
 				if (p_match_size != NULL)
-					*p_match_size = re_interpreter_in_curoffset(interp) - exec->rx_startoff;
+					*p_match_size = re_interpreter_in_curoffset(interp) - match_offset;
 				result = (ssize_t)match_offset;
 				re_interpreter_copy_match(interp);
 			}
