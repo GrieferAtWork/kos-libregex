@@ -2666,7 +2666,7 @@ check_bytes_only_ascii:
 		maxset    = (byte_t)(0xff - bit_ctz(cs.rc_bytes, 256));
 		base      = RECS_BITSET_BASEFOR(minset);
 		num_bits  = (maxset + 1) - base;
-		num_bytes = CEILDIV(num_bits, 8);
+		num_bytes = (byte_t)CEILDIV(num_bits, 8);
 		assertf(num_bytes <= 0x20, "%" PRIuSIZ, num_bytes);
 		cs_opcode = RECS_BITSET_BUILD(base, num_bytes);
 		assertf((cs_opcode <= RECS_BITSET_MAX_UTF8) ||
