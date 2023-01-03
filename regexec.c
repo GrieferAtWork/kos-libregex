@@ -177,7 +177,7 @@ struct re_interpreter {
 #ifdef LIBREGEX_REGEXEC_SINGLE_CHUNK
 #define re_interpreter_in_curoffset_or_ptr(self) (self)->ri_in_ptr
 #else /* LIBREGEX_REGEXEC_SINGLE_CHUNK */
-#define re_interpreter_in_curoffset_or_ptr(self) re_interpreter_in_curoffset(self) 
+#define re_interpreter_in_curoffset_or_ptr(self) re_interpreter_in_curoffset(self)
 #endif /* !LIBREGEX_REGEXEC_SINGLE_CHUNK */
 
 #ifdef LIBREGEX_REGEXEC_SINGLE_CHUNK

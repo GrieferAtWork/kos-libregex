@@ -71,9 +71,9 @@ struct re_exec {
 	                                    * - Upon failure, the contents of this buffer are left in an undefined state
 	                                    * - Offsets written INCLUDE `rx_startoff' (i.e. are always `>= rx_startoff') */
 #ifdef LIBREGEX_REGEXEC_SINGLE_CHUNK
-	void const           *rx_inbase;   /* [0..rx_insize][valid_if(rx_startoff < rx_endoff)] Input data to scan
+	void const           *rx_inbase;   /* [0..rx_insize][valid_if(rx_startoff < rx_endoff)] Input  data to  scan
 	                                    * When `rx_code' was compiled with `DEE_REGEX_COMPILE_NOUTF8', this data
-	                                    * is treated as raw bytes; otherwise, it is treated as a utf-8 string.
+	                                    * is  treated as raw bytes; otherwise, it  is treated as a utf-8 string.
 	                                    * In either case, `rx_insize' is the # of bytes within this buffer. */
 	__size_t              rx_insize;   /* Total # of bytes starting at `rx_inbase' */
 	__size_t              rx_startoff; /* Starting byte offset into `rx_inbase' of data to match. */

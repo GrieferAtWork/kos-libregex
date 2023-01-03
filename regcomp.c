@@ -258,7 +258,7 @@ for (local opt: SYNTAX_OPTIONS) {
 /*[[[end]]]*/
 
 /* TODO: Generic more efficient code based on `LIBREGEX_CONSTANT__*' macros.
- *       Depending on `LIBREGEX_CONSTANT__*' macros, we're even able to get
+ *       Depending on `LIBREGEX_CONSTANT__*' macros, we're even able to  get
  *       rid of certain opcodes! */
 
 
