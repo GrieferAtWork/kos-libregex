@@ -2439,7 +2439,7 @@ err:
 	return -error;
 }
 
-/* Similar to `re_exec_search(3)',  but never matches  epsilon.
+/* Similar to `re_exec_search(3)',  but never returns  epsilon.
  * Instead, keep on searching if epsilon happens to be matched. */
 INTERN WUNUSED NONNULL((1)) ssize_t
 NOTHROW_NCX(CC libre_exec_search_noepsilon)(struct re_exec const *__restrict exec,
