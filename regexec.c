@@ -1254,20 +1254,25 @@ dispatch:
 			DISPATCH();
 		}
 
+#ifdef REOP_ANY
 		TARGET(REOP_ANY) {
 			if (re_interpreter_is_eoi(self))
 				ONFAIL();
 			(void)re_interpreter_readbyte(self);
 			DISPATCH();
 		}
+#endif /* REOP_ANY */
 
+#ifdef REOP_ANY_UTF8
 		TARGET(REOP_ANY_UTF8) {
 			if (re_interpreter_is_eoi(self))
 				ONFAIL();
 			(void)re_interpreter_readutf8(self);
 			DISPATCH();
 		}
+#endif /* REOP_ANY_UTF8 */
 
+#ifdef REOP_ANY_NOTLF
 		TARGET(REOP_ANY_NOTLF) {
 			byte_t ch;
 			if (re_interpreter_is_eoi(self))
@@ -1277,7 +1282,9 @@ dispatch:
 				ONFAIL();
 			DISPATCH();
 		}
+#endif /* REOP_ANY_NOTLF */
 
+#ifdef REOP_ANY_NOTLF_UTF8
 		TARGET(REOP_ANY_NOTLF_UTF8) {
 			char32_t ch;
 			if (re_interpreter_is_eoi(self))
@@ -1287,7 +1294,9 @@ dispatch:
 				ONFAIL();
 			DISPATCH();
 		}
+#endif /* REOP_ANY_NOTLF_UTF8 */
 
+#ifdef REOP_ANY_NOTNUL
 		TARGET(REOP_ANY_NOTNUL) {
 			byte_t ch;
 			if (re_interpreter_is_eoi(self))
@@ -1297,7 +1306,9 @@ dispatch:
 				ONFAIL();
 			DISPATCH();
 		}
+#endif /* REOP_ANY_NOTNUL */
 
+#ifdef REOP_ANY_NOTNUL_UTF8
 		TARGET(REOP_ANY_NOTNUL_UTF8) {
 			char32_t ch;
 			if (re_interpreter_is_eoi(self))
@@ -1307,7 +1318,9 @@ dispatch:
 				ONFAIL();
 			DISPATCH();
 		}
+#endif /* REOP_ANY_NOTNUL_UTF8 */
 
+#ifdef REOP_ANY_NOTNUL_NOTLF
 		TARGET(REOP_ANY_NOTNUL_NOTLF) {
 			byte_t ch;
 			if (re_interpreter_is_eoi(self))
@@ -1317,7 +1330,9 @@ dispatch:
 				ONFAIL();
 			DISPATCH();
 		}
+#endif /* REOP_ANY_NOTNUL_NOTLF */
 
+#ifdef REOP_ANY_NOTNUL_NOTLF_UTF8
 		TARGET(REOP_ANY_NOTNUL_NOTLF_UTF8) {
 			char32_t ch;
 			if (re_interpreter_is_eoi(self))
@@ -1327,6 +1342,7 @@ dispatch:
 				ONFAIL();
 			DISPATCH();
 		}
+#endif /* REOP_ANY_NOTNUL_NOTLF_UTF8 */
 
 		TARGET(REOP_BYTE) {
 			/* Followed by 1 byte that must be matched exactly */

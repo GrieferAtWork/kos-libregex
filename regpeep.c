@@ -362,10 +362,20 @@ again:
 		case REOP_EXACT_ASCII_ICASE:
 			if (!int2->rmi_exact_nrem)
 				goto int2_after_exact_data;
-			if (opcode1 == REOP_ANY_UTF8 ||
+			if (0 ||
+#ifdef REOP_ANY_UTF8
+			    opcode1 == REOP_ANY_UTF8 ||
+#endif /* REOP_ANY_UTF8 */
+#ifdef REOP_ANY_NOTLF_UTF8
 			    opcode1 == REOP_ANY_NOTLF_UTF8 ||
+#endif /* REOP_ANY_NOTLF_UTF8 */
+#ifdef REOP_ANY_NOTNUL_UTF8
 			    opcode1 == REOP_ANY_NOTNUL_UTF8 ||
-			    opcode1 == REOP_ANY_NOTNUL_NOTLF_UTF8) {
+#endif /* REOP_ANY_NOTNUL_UTF8 */
+#ifdef REOP_ANY_NOTNUL_NOTLF_UTF8
+			    opcode1 == REOP_ANY_NOTNUL_NOTLF_UTF8 ||
+#endif /* REOP_ANY_NOTNUL_NOTLF_UTF8 */
+			    0) {
 				/* Must consume a utf-8 character from `int2' */
 				re_mini_interpreter_exact_readutf8(int2);
 			} else {
@@ -465,19 +475,35 @@ compare_ascii_utf8_icase_exact:
 			}
 			__builtin_unreachable();
 
+#ifdef REOP_ANY
 		case REOP_ANY:
+#endif /* REOP_ANY */
+#ifdef REOP_ANY_NOTLF
 		case REOP_ANY_NOTLF:
+#endif /* REOP_ANY_NOTLF */
+#ifdef REOP_ANY_NOTNUL
 		case REOP_ANY_NOTNUL:
+#endif /* REOP_ANY_NOTNUL */
+#ifdef REOP_ANY_NOTNUL_NOTLF
 		case REOP_ANY_NOTNUL_NOTLF:
+#endif /* REOP_ANY_NOTNUL_NOTLF */
 			++int1->rmi_exact_data;
 			--int1->rmi_exact_nrem;
 			++int2->rmi_pc;
 			goto again;
 
+#ifdef REOP_ANY_UTF8
 		case REOP_ANY_UTF8:
+#endif /* REOP_ANY_UTF8 */
+#ifdef REOP_ANY_NOTLF_UTF8
 		case REOP_ANY_NOTLF_UTF8:
+#endif /* REOP_ANY_NOTLF_UTF8 */
+#ifdef REOP_ANY_NOTNUL_UTF8
 		case REOP_ANY_NOTNUL_UTF8:
+#endif /* REOP_ANY_NOTNUL_UTF8 */
+#ifdef REOP_ANY_NOTNUL_NOTLF_UTF8
 		case REOP_ANY_NOTNUL_NOTLF_UTF8:
+#endif /* REOP_ANY_NOTNUL_NOTLF_UTF8 */
 			/* Must consume a utf-8 character from the exact-stream */
 			re_mini_interpreter_exact_readutf8(int1);
 			++int2->rmi_pc;

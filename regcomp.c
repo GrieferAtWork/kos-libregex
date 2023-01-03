@@ -3176,17 +3176,47 @@ do_group_start_without_alternation:
 
 	case RE_TOKEN_ANY: {
 		uint8_t opcode;
-		static_assert(REOP_MAKEANY(false, false, false) == REOP_ANY_NOTNUL_NOTLF);
-		static_assert(REOP_MAKEANY(false, false, true) == REOP_ANY_NOTNUL_NOTLF_UTF8);
-		static_assert(REOP_MAKEANY(false, true, false) == REOP_ANY_NOTNUL);
-		static_assert(REOP_MAKEANY(false, true, true) == REOP_ANY_NOTNUL_UTF8);
-		static_assert(REOP_MAKEANY(true, false, false) == REOP_ANY_NOTLF);
-		static_assert(REOP_MAKEANY(true, false, true) == REOP_ANY_NOTLF_UTF8);
-		static_assert(REOP_MAKEANY(true, true, false) == REOP_ANY);
-		static_assert(REOP_MAKEANY(true, true, true) == REOP_ANY_UTF8);
-		opcode = REOP_MAKEANY(!IF_DOT_NOT_NULL(self->rec_parser.rep_syntax),
-		                      IF_DOT_NEWLINE(self->rec_parser.rep_syntax),
-		                      !IF_NO_UTF8(self->rec_parser.rep_syntax));
+#define _ANY_CASE_XCLAIM_IF_NOT_WANTED_0 !
+#define _ANY_CASE_XCLAIM_IF_NOT_WANTED_1 /* nothing */
+#define _ANY_CASE_XCLAIM_IF_NOT_WANTED(x) _ANY_CASE_XCLAIM_IF_NOT_WANTED_##x
+#define ANY_CASE(opcode_, want_nul, want_lf, want_utf8)                                                \
+		if (_ANY_CASE_XCLAIM_IF_NOT_WANTED(want_nul)  !IF_DOT_NOT_NULL(self->rec_parser.rep_syntax) && \
+		    _ANY_CASE_XCLAIM_IF_NOT_WANTED(want_lf)    IF_DOT_NEWLINE(self->rec_parser.rep_syntax) &&  \
+		    _ANY_CASE_XCLAIM_IF_NOT_WANTED(want_utf8) !IF_NO_UTF8(self->rec_parser.rep_syntax)) {      \
+			opcode = opcode_;                                                                          \
+		} else
+#ifdef REOP_ANY_NOTNUL_NOTLF 
+		ANY_CASE(REOP_ANY_NOTNUL_NOTLF /**/, 0, 0, 0)
+#endif /* REOP_ANY_NOTNUL_NOTLF  */
+#ifdef REOP_ANY_NOTNUL_NOTLF_UTF8
+		ANY_CASE(REOP_ANY_NOTNUL_NOTLF_UTF8, 0, 0, 1)
+#endif /* REOP_ANY_NOTNUL_NOTLF_UTF8 */
+#ifdef REOP_ANY_NOTNUL 
+		ANY_CASE(REOP_ANY_NOTNUL /*      */, 0, 1, 0)
+#endif /* REOP_ANY_NOTNUL  */
+#ifdef REOP_ANY_NOTNUL_UTF8 
+		ANY_CASE(REOP_ANY_NOTNUL_UTF8 /* */, 0, 1, 1)
+#endif /* REOP_ANY_NOTNUL_UTF8  */
+#ifdef REOP_ANY_NOTLF 
+		ANY_CASE(REOP_ANY_NOTLF /*       */, 1, 0, 0)
+#endif /* REOP_ANY_NOTLF  */
+#ifdef REOP_ANY_NOTLF_UTF8 
+		ANY_CASE(REOP_ANY_NOTLF_UTF8 /*  */, 1, 0, 1)
+#endif /* REOP_ANY_NOTLF_UTF8  */
+#ifdef REOP_ANY 
+		ANY_CASE(REOP_ANY /*             */, 1, 1, 0)
+#endif /* REOP_ANY  */
+#ifdef REOP_ANY_UTF8 
+		ANY_CASE(REOP_ANY_UTF8 /*        */, 1, 1, 1)
+#endif /* REOP_ANY_UTF8  */
+		{
+			__builtin_unreachable();
+		}
+#undef ANY_CASE
+#undef _ANY_CASE_XCLAIM_IF_NOT_WANTED
+#undef _ANY_CASE_XCLAIM_IF_NOT_WANTED_1
+#undef _ANY_CASE_XCLAIM_IF_NOT_WANTED_0
+
 		alternation_prefix_dump();
 		if (!re_compiler_putc(self, opcode))
 			goto err_nomem;
@@ -4532,14 +4562,30 @@ do_cs_bitset:
 		case opcode:                \
 			opcode_repr = repr;     \
 			goto do_print_opcode_repr
+#ifdef REOP_ANY
 		SIMPLE_OPCODE(REOP_ANY, "any");
+#endif /* REOP_ANY */
+#ifdef REOP_ANY_UTF8
 		SIMPLE_OPCODE(REOP_ANY_UTF8, "any");
+#endif /* REOP_ANY_UTF8 */
+#ifdef REOP_ANY_NOTLF
 		SIMPLE_OPCODE(REOP_ANY_NOTLF, "any_notlf");
+#endif /* REOP_ANY_NOTLF */
+#ifdef REOP_ANY_NOTLF_UTF8
 		SIMPLE_OPCODE(REOP_ANY_NOTLF_UTF8, "any_notlf");
+#endif /* REOP_ANY_NOTLF_UTF8 */
+#ifdef REOP_ANY_NOTNUL
 		SIMPLE_OPCODE(REOP_ANY_NOTNUL, "any_notnul");
+#endif /* REOP_ANY_NOTNUL */
+#ifdef REOP_ANY_NOTNUL_UTF8
 		SIMPLE_OPCODE(REOP_ANY_NOTNUL_UTF8, "any_notnul");
+#endif /* REOP_ANY_NOTNUL_UTF8 */
+#ifdef REOP_ANY_NOTNUL_NOTLF
 		SIMPLE_OPCODE(REOP_ANY_NOTNUL_NOTLF, "any_notnul_notlf");
+#endif /* REOP_ANY_NOTNUL_NOTLF */
+#ifdef REOP_ANY_NOTNUL_NOTLF_UTF8
 		SIMPLE_OPCODE(REOP_ANY_NOTNUL_NOTLF_UTF8, "any_notnul_notlf_utf8");
+#endif /* REOP_ANY_NOTNUL_NOTLF_UTF8 */
 		SIMPLE_OPCODE(REOP_AT_SOI, "at_soi");
 		SIMPLE_OPCODE(REOP_AT_EOI, "at_eoi");
 		SIMPLE_OPCODE(REOP_AT_SOL, "at_sol");

@@ -554,37 +554,65 @@ again:
 			GOTMATCH();
 		}
 
+#if defined(REOP_ANY) || defined(REOP_ANY_UTF8)
+#ifdef REOP_ANY
 		TARGET(REOP_ANY)
-		TARGET(REOP_ANY_UTF8) {
+#endif /* REOP_ANY */
+#ifdef REOP_ANY_UTF8
+		TARGET(REOP_ANY_UTF8)
+#endif /* REOP_ANY_UTF8 */
+		{
 			fastmap_setpcr(fmap, self, 0x00, 0xff, enter_pc);
 			minmatch = 1;
 			GOTMATCH();
 		}
+#endif /* REOP_ANY || REOP_ANY_UTF8 */
 
+#if defined(REOP_ANY_NOTLF) || defined(REOP_ANY_NOTLF_UTF8)
+#ifdef REOP_ANY_NOTLF
 		TARGET(REOP_ANY_NOTLF)
-		TARGET(REOP_ANY_NOTLF_UTF8) {
+#endif /* REOP_ANY_NOTLF */
+#ifdef REOP_ANY_NOTLF_UTF8
+		TARGET(REOP_ANY_NOTLF_UTF8)
+#endif /* REOP_ANY_NOTLF_UTF8 */
+		{
 			fastmap_setpcr(fmap, self, 0x00 + 0, 0x0a - 1, enter_pc);
 			fastmap_setpcr(fmap, self, 0x0a + 1, 0x0d - 1, enter_pc);
 			fastmap_setpcr(fmap, self, 0x0d + 1, 0xff + 0, enter_pc);
 			minmatch = 1;
 			GOTMATCH();
 		}
+#endif /* REOP_ANY_NOTLF || REOP_ANY_NOTLF_UTF8 */
 
+#if defined(REOP_ANY_NOTNUL) || defined(REOP_ANY_NOTNUL_UTF8)
+#ifdef REOP_ANY_NOTNUL
 		TARGET(REOP_ANY_NOTNUL)
-		TARGET(REOP_ANY_NOTNUL_UTF8) {
+#endif /* REOP_ANY_NOTNUL */
+#ifdef REOP_ANY_NOTNUL_UTF8
+		TARGET(REOP_ANY_NOTNUL_UTF8)
+#endif /* REOP_ANY_NOTNUL_UTF8 */
+		{
 			fastmap_setpcr(fmap, self, 0x01, 0xff, enter_pc);
 			minmatch = 1;
 			GOTMATCH();
 		}
+#endif /* REOP_ANY_NOTLF || REOP_ANY_NOTNUL_UTF8 */
 
+#if defined(REOP_ANY_NOTNUL_NOTLF) || defined(REOP_ANY_NOTNUL_NOTLF_UTF8)
+#ifdef REOP_ANY_NOTNUL_NOTLF
 		TARGET(REOP_ANY_NOTNUL_NOTLF)
-		TARGET(REOP_ANY_NOTNUL_NOTLF_UTF8) {
+#endif /* REOP_ANY_NOTNUL_NOTLF */
+#ifdef REOP_ANY_NOTNUL_NOTLF_UTF8
+		TARGET(REOP_ANY_NOTNUL_NOTLF_UTF8)
+#endif /* REOP_ANY_NOTNUL_NOTLF_UTF8 */
+		{
 			fastmap_setpcr(fmap, self, 0x01 + 0, 0x0a - 1, enter_pc);
 			fastmap_setpcr(fmap, self, 0x0a + 1, 0x0d - 1, enter_pc);
 			fastmap_setpcr(fmap, self, 0x0d + 1, 0xff + 0, enter_pc);
 			minmatch = 1;
 			GOTMATCH();
 		}
+#endif /* REOP_ANY_NOTLF || REOP_ANY_NOTNUL_NOTLF_UTF8 */
 
 		TARGET(REOP_BYTE) {
 			fastmap_setpc(fmap, self, pc[0], enter_pc);
