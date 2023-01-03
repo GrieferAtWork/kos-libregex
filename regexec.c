@@ -654,23 +654,20 @@ NOTHROW_NCX(CC re_interpreter_init)(struct re_interpreter *__restrict self,
 	self->ri_in_cbase = (byte_t const *)exec->rx_inbase;
 	self->ri_in_cend  = (byte_t const *)exec->rx_inbase + endoff;
 	if unlikely(startoff >= endoff) {
-		if (endoff < exec->rx_insize) {
-			startoff = endoff;
-			goto load_normal_input;
-		}
-		startoff          = 0;
-		endoff            = 0;
-		self->ri_in_cbase = NULL;
-		self->ri_in_cend  = NULL;
+		endoff = startoff; /* `startoff' is still needed to get the size of epsilon matches right! */
+		self->ri_in_ptr  = self->ri_in_cbase + startoff;
+		self->ri_in_vend = self->ri_in_cbase + exec->rx_insize;
+		if unlikely(startoff > exec->rx_insize)
+			self->ri_in_vend = self->ri_in_ptr; /* Ensure that we start _at_ true EOF (not after it) */
+		goto done_in_init;
 	}
-load_normal_input:
-	assert(endoff <= exec->rx_insize);
 #else /* LIBREGEX_REGEXEC_SINGLE_CHUNK */
 	if unlikely(startoff >= endoff) {
 		static struct iovec const empty_iov = { NULL, 0 };
 		/* Special case: input buffer is epsilon. */
-		startoff = 0;
+		chunkoff = startoff; /* `startoff' is still needed to get the size of epsilon matches right! */
 		endoff   = 0;
+		startoff = 0;
 		if (exec->rx_extra != 0)
 			goto load_normal_iov;
 		iov              = &empty_iov;
@@ -693,6 +690,7 @@ load_normal_iov:
 #ifdef LIBREGEX_REGEXEC_SINGLE_CHUNK
 	self->ri_in_ptr  = self->ri_in_cbase + startoff;
 	self->ri_in_vend = self->ri_in_cbase + exec->rx_insize;
+done_in_init:
 #else /* LIBREGEX_REGEXEC_SINGLE_CHUNK */
 	self->ri_in_ptr   = (byte_t const *)iov->iov_base + startoff;
 	in_len            = iov->iov_len - startoff;
