@@ -1440,7 +1440,7 @@ dispatch:
 			}
 			/* Consume remaining characters */
 			for (; count; --count)
-				unicode_readutf8((char const **)&newpc);
+				newpc += unicode_utf8seqlen[(unsigned char)*newpc];
 			pc = newpc;
 			DISPATCH();
 		}
