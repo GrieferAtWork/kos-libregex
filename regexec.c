@@ -2439,6 +2439,71 @@ err:
 	return -error;
 }
 
+/* Similar to `re_exec_search(3)',  but never matches  epsilon.
+ * Instead, keep on searching if epsilon happens to be matched. */
+INTERN WUNUSED NONNULL((1)) ssize_t
+NOTHROW_NCX(CC libre_exec_search_noepsilon)(struct re_exec const *__restrict exec,
+                                            size_t search_range, size_t *p_match_size) {
+	ssize_t result;
+	re_errno_t error;
+	struct re_interpreter *interp;
+	struct re_interpreter_inptr used_inptr;
+	size_t match_offset, total_left;
+	if (OVERFLOW_USUB(exec->rx_endoff, exec->rx_startoff, &total_left))
+		total_left = 0;
+	if (OVERFLOW_USUB(total_left, exec->rx_code->rc_minmatch, &total_left))
+		return -RE_NOMATCH; /* Buffer is to small to ever match */
+
+	/* Clamp the max possible search area */
+	if (search_range > total_left + 1) /* +1, so the last search is still performed (e.g. "x".refind("[[:lower:]]")) */
+		search_range = total_left + 1;
+	if unlikely(!search_range)
+		return -RE_NOMATCH; /* Not supposed to do any searches? -- OK then... */
+
+	/* Setup */
+	interp = re_interpreter_alloc(exec->rx_code->rc_nvars);
+	error  = re_interpreter_init(interp, exec);
+	if unlikely(error != 0)
+		goto err;
+	re_interpreter_init_match(interp, exec);
+
+	/* Do the search-loop */
+	used_inptr   = interp->ri_in;
+	match_offset = exec->rx_startoff;
+	for (;;) {
+		result = libre_interp_exec(interp);
+		if (result != -RE_NOMATCH) {
+			/* Set success result values if we didn't get here due to an error. */
+			if likely(result == -RE_NOERROR) {
+				size_t match_size;
+				match_size = re_interpreter_in_curoffset(interp) - match_offset;
+				if (match_size == 0) {
+					result = -RE_NOMATCH;
+					goto advance_one;
+				}
+				if (p_match_size != NULL)
+					*p_match_size = match_size;
+				result = (ssize_t)match_offset;
+				re_interpreter_copy_match(interp);
+			}
+			break;
+		}
+advance_one:
+		--search_range;
+		if (search_range == 0)
+			break;
+		++match_offset;
+		re_interpreter_inptr_in_advance1(&used_inptr);
+		interp->ri_in = used_inptr;
+	}
+
+	/* Cleanup */
+	re_interpreter_fini(interp);
+	return result;
+err:
+	return -error;
+}
+
 /* Same as `re_exec_search(3R)', but perform searching with starting
  * offsets  in   `[exec->rx_endoff - search_range, exec->rx_endoff)'
  * Too great values  for `search_range'  are automatically  clamped.
