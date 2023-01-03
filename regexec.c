@@ -2578,6 +2578,7 @@ err:
 /* Exports */
 DEFINE_PUBLIC_ALIAS(re_exec_match, libre_exec_match);
 DEFINE_PUBLIC_ALIAS(re_exec_search, libre_exec_search);
+DEFINE_PUBLIC_ALIAS(re_exec_search_noepsilon, libre_exec_search_noepsilon);
 DEFINE_PUBLIC_ALIAS(re_exec_rsearch, libre_exec_rsearch);
 
 DECL_END
