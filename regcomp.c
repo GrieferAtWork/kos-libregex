@@ -1311,7 +1311,7 @@ PRIVATE int __LIBCCALL compare_char32_t(void const *a, void const *b) {
 PRIVATE WUNUSED NONNULL((1)) re_errno_t
 NOTHROW_NCX(CC re_compiler_compile_literal_uni)(struct re_compiler *__restrict self,
                                                 char32_t literal_char) {
-	char utf8[UNICODE_UTF8_MAXLEN];
+	char utf8[UNICODE_UTF8_CURLEN];
 	size_t utf8_len;
 	utf8_len = (size_t)(unicode_writeutf8(utf8, literal_char) - utf8);
 	if unlikely(utf8_len == 1) {
@@ -1342,7 +1342,7 @@ NOTHROW_NCX(CC re_compiler_compile_literal_uni)(struct re_compiler *__restrict s
 			chars[nchars++] = title;
 		assert(nchars >= 1 && nchars <= 4);
 		if (nchars > 1) {
-			char icase_utf8[lengthof(chars) * UNICODE_UTF8_MAXLEN], *endp;
+			char icase_utf8[lengthof(chars) * UNICODE_UTF8_CURLEN], *endp;
 			size_t icase_utf8_len;
 			uint8_t i;
 			/* Must sort `chars', as required by `REOP_CONTAINS_UTF8' */
@@ -1745,7 +1745,7 @@ PRIVATE WUNUSED NONNULL((1)) int
 NOTHROW_NCX(CC unicode_charset_insert)(struct unicode_charset *__restrict self,
                                        char32_t ch) {
 	size_t utf8_len, oldsize, newsize, avlsize;
-	char utf8[UNICODE_UTF8_MAXLEN];
+	char utf8[UNICODE_UTF8_CURLEN];
 	char *lo, *hi;
 	lo = self->ucs_basep;
 	hi = self->ucs_endp;
@@ -1838,7 +1838,7 @@ PRIVATE WUNUSED NONNULL((1)) bool
 NOTHROW_NCX(CC re_compiler_gen_RECS_RANGE)(struct re_compiler *__restrict self,
                                            char32_t lo, char32_t hi) {
 	size_t codelen;
-	byte_t code[1 + (2 * UNICODE_UTF8_MAXLEN)], *writer;
+	byte_t code[1 + (2 * UNICODE_UTF8_CURLEN)], *writer;
 	writer    = code;
 	*writer++ = IF_ICASE(self->rec_parser.rep_syntax) ? (uint8_t)RECS_RANGE_ICASE
 	                                                  : (uint8_t)RECS_RANGE;

@@ -402,7 +402,7 @@ NOTHROW_NCX(CC re_interpreter_prevutf8)(struct re_interpreter const *__restrict 
 		byte_t prevbyte = self->ri_in_ptr[-1];
 		if likely(prevbyte < 0x80)
 			return prevbyte;
-		if likely((self->ri_in_ptr - UNICODE_UTF8_MAXLEN) <= self->ri_in_cbase) {
+		if likely((self->ri_in_ptr - UNICODE_UTF8_CURLEN) <= self->ri_in_cbase) {
 			/* Can just read the entire character from the current chunk */
 			char const *reader = (char const *)self->ri_in_ptr;
 			return unicode_readutf8_rev(&reader);
@@ -423,7 +423,7 @@ NOTHROW_NCX(CC re_interpreter_prevutf8)(struct re_interpreter const *__restrict 
 	/* Fallback: copy memory into a temporary buffer. */
 	{
 		size_t utf8_len;
-		char utf8[UNICODE_UTF8_MAXLEN], *reader;
+		char utf8[UNICODE_UTF8_CURLEN], *reader;
 		utf8_len = re_interpreter_peekmem_bck(self, utf8, sizeof(utf8));
 		reader   = utf8 + utf8_len;
 		assert(utf8_len != 0);
@@ -464,7 +464,7 @@ NOTHROW_NCX(CC re_interpreter_nextutf8)(struct re_interpreter const *__restrict 
 	/* Fallback: copy memory into a temporary buffer. */
 	{
 		size_t utf8_len;
-		char utf8[UNICODE_UTF8_MAXLEN], *reader;
+		char utf8[UNICODE_UTF8_CURLEN], *reader;
 		utf8_len = re_interpreter_peekmem_fwd(self, utf8, sizeof(utf8));
 		reader   = utf8;
 		assert(utf8_len != 0);
@@ -522,7 +522,7 @@ NOTHROW_NCX(CC re_interpreter_readutf8)(struct re_interpreter *__restrict self) 
 	/* Unicode character is spread across multiple chunks */
 	{
 		size_t firstchunk, missing, left;
-		char utf8[UNICODE_UTF8_MAXLEN], *dst, *reader;
+		char utf8[UNICODE_UTF8_CURLEN], *dst, *reader;
 		firstchunk = re_interpreter_in_chunkleft(self);
 		assert(seqlen > firstchunk);
 		dst     = (char *)mempcpy(utf8, self->ri_in_ptr, firstchunk);
