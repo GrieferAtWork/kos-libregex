@@ -78,12 +78,12 @@ NOTHROW_NCX(CC libre_parser_yield)(struct re_parser *__restrict self);
 INTDEF WUNUSED NONNULL((1)) re_errno_t
 NOTHROW_NCX(CC libre_compiler_compile)(struct re_compiler *__restrict self);
 
-#ifndef NDEBUG
+#if !defined(LIBREGEX_NO_RE_CODE_DISASM) && !defined(NDEBUG)
 /* Print a disassembly of `self' (for debugging) */
 INTDEF NONNULL((1)) ssize_t
 NOTHROW_NCX(CC libre_code_disasm)(struct re_code const *__restrict self,
                                   pformatprinter printer, void *arg);
-#endif /* !NDEBUG */
+#endif /* !LIBREGEX_NO_RE_CODE_DISASM && !NDEBUG */
 
 DECL_END
 
