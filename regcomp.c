@@ -3185,28 +3185,28 @@ do_group_start_without_alternation:
 		    _ANY_CASE_XCLAIM_IF_NOT_WANTED(want_utf8) !IF_NO_UTF8(self->rec_parser.rep_syntax)) {      \
 			opcode = opcode_;                                                                          \
 		} else
-#ifdef REOP_ANY_NOTNUL_NOTLF 
+#ifdef REOP_ANY_NOTNUL_NOTLF
 		ANY_CASE(REOP_ANY_NOTNUL_NOTLF /**/, 0, 0, 0)
 #endif /* REOP_ANY_NOTNUL_NOTLF  */
 #ifdef REOP_ANY_NOTNUL_NOTLF_UTF8
 		ANY_CASE(REOP_ANY_NOTNUL_NOTLF_UTF8, 0, 0, 1)
 #endif /* REOP_ANY_NOTNUL_NOTLF_UTF8 */
-#ifdef REOP_ANY_NOTNUL 
+#ifdef REOP_ANY_NOTNUL
 		ANY_CASE(REOP_ANY_NOTNUL /*      */, 0, 1, 0)
 #endif /* REOP_ANY_NOTNUL  */
-#ifdef REOP_ANY_NOTNUL_UTF8 
+#ifdef REOP_ANY_NOTNUL_UTF8
 		ANY_CASE(REOP_ANY_NOTNUL_UTF8 /* */, 0, 1, 1)
 #endif /* REOP_ANY_NOTNUL_UTF8  */
-#ifdef REOP_ANY_NOTLF 
+#ifdef REOP_ANY_NOTLF
 		ANY_CASE(REOP_ANY_NOTLF /*       */, 1, 0, 0)
 #endif /* REOP_ANY_NOTLF  */
-#ifdef REOP_ANY_NOTLF_UTF8 
+#ifdef REOP_ANY_NOTLF_UTF8
 		ANY_CASE(REOP_ANY_NOTLF_UTF8 /*  */, 1, 0, 1)
 #endif /* REOP_ANY_NOTLF_UTF8  */
-#ifdef REOP_ANY 
+#ifdef REOP_ANY
 		ANY_CASE(REOP_ANY /*             */, 1, 1, 0)
 #endif /* REOP_ANY  */
-#ifdef REOP_ANY_UTF8 
+#ifdef REOP_ANY_UTF8
 		ANY_CASE(REOP_ANY_UTF8 /*        */, 1, 1, 1)
 #endif /* REOP_ANY_UTF8  */
 		{
