@@ -1938,10 +1938,10 @@ REOP_NCS_UTF8_dispatch:
 			bool ismatch;
 			switch (opcode) {
 			case REOP_AT_WOB:
-				ismatch = previs == nextis;
+				ismatch = previs != nextis;
 				break;
 			case REOP_AT_WOB_NOT:
-				ismatch = previs != nextis;
+				ismatch = previs == nextis;
 				break;
 			case REOP_AT_SOW:
 				ismatch = !previs && nextis;
@@ -1966,10 +1966,10 @@ REOP_NCS_UTF8_dispatch:
 			bool ismatch;
 			switch (opcode) {
 			case REOP_AT_WOB_UTF8:
-				ismatch = previs == nextis;
+				ismatch = previs != nextis;
 				break;
 			case REOP_AT_WOB_UTF8_NOT:
-				ismatch = previs != nextis;
+				ismatch = previs == nextis;
 				break;
 			case REOP_AT_SOW_UTF8:
 				ismatch = !previs && nextis;
