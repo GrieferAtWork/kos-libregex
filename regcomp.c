@@ -279,8 +279,8 @@ DECL_BEGIN
 #define DBG_memset(...) (void)0
 #endif /* NDEBUG || NDEBUG_FINI */
 
-#define delta16_get(p)    ((int16_t)UNALIGNED_GET16((uint16_t const *)(p)))
-#define delta16_set(p, v) UNALIGNED_SET16((uint16_t *)(p), (uint16_t)(int16_t)(v))
+#define delta16_get(p)    ((int16_t)UNALIGNED_GET16(p))
+#define delta16_set(p, v) UNALIGNED_SET16(p, (uint16_t)(int16_t)(v))
 
 #define tswap(T, a, b)   \
 	do {                 \

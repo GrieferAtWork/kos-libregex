@@ -77,7 +77,7 @@ DECL_BEGIN
 #define DBG_memset(...) (void)0
 #endif /* NDEBUG || NDEBUG_FINI */
 
-#define delta16_get(p) ((int16_t)UNALIGNED_GET16((uint16_t const *)(p)))
+#define delta16_get(p) ((int16_t)UNALIGNED_GET16(p))
 
 #define RE_ONFAILURE_ITEM_DUMMY_INPTR                         ((byte_t const *)512) /* == 256 * 2 (256 being the max # of groups per pattern, and 2 being the # of offsets per group) */
 #define RE_ONFAILURE_ITEM_SPECIAL_CHECK(inptr)                ((uintptr_t)(inptr) <= (uintptr_t)RE_ONFAILURE_ITEM_DUMMY_INPTR)

@@ -79,8 +79,8 @@ DECL_BEGIN
 #define RANGES_OVERLAP(r1_min, r1_max, r2_min, r2_max) \
 	((r1_max) >= (r2_min) && (r2_max) >= (r1_min))
 
-#define delta16_get(p)    ((int16_t)UNALIGNED_GET16((uint16_t const *)(p)))
-#define delta16_set(p, v) UNALIGNED_SET16((uint16_t *)(p), (uint16_t)(int16_t)(v))
+#define delta16_get(p)    ((int16_t)UNALIGNED_GET16(p))
+#define delta16_set(p, v) UNALIGNED_SET16(p, (uint16_t)(int16_t)(v))
 
 #define getb() (*pc++)
 #define getw() (pc += 2, delta16_get(pc - 2))

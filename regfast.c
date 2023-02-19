@@ -156,7 +156,7 @@ INTDEF ATTR_PURE ATTR_RETNONNULL WUNUSED NONNULL((1)) byte_t * /* from "./regcom
 NOTHROW_NCX(CC libre_opcode_next)(byte_t const *__restrict p_instr);
 
 #define getb() (*pc++)
-#define getw() (pc += 2, (int16_t)UNALIGNED_GET16((uint16_t const *)(pc - 2)))
+#define getw() (pc += 2, (int16_t)UNALIGNED_GET16(pc - 2))
 #define REQUIRE_MY_VARIABLES() \
 	(my_variables || (my_variables = variables = (byte_t *)memcpy(alloca(self->rc_nvars), variables, self->rc_nvars), 1))
 
