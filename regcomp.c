@@ -971,14 +971,9 @@ NOTHROW_NCX(CC re_compiler_require)(struct re_compiler *__restrict self,
 		self->rec_cend  = new_base + new_size;
 		if (new_base != old_base) {
 			/* Update pointers for the the block currently being compiled. */
-#ifdef __GNUC__
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wuse-after-free" /* No: this use of `old_base' after free is OK! */
-#endif /* __GNUC__ */
+			__pragma_GCC_diagnostic_push_ignored(Wuse_after_free) /* No: this use of `old_base' after free is OK! */
 			ptrdiff_t delta = new_base - old_base;
-#ifdef __GNUC__
-#pragma GCC diagnostic pop
-#endif /* __GNUC__ */
+			__pragma_GCC_diagnostic_pop_ignored(Wuse_after_free)
 			self->rec_estart += delta;
 			self->rec_cpos += delta;
 		}
