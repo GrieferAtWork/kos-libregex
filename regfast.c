@@ -476,6 +476,7 @@ NOTHROW_NCX(CC cs_gather_matching_bytes)(bitstr_t matchend_bytes[],
 		}	break;
 
 		default:
+			__pragma_GCC_diagnostic_push_ignored(Wtype_limits)
 			if (cs_opcode >= RECS_BITSET_MIN &&
 			    cs_opcode <= (is_unicode ? RECS_BITSET_MAX_UTF8
 			                             : RECS_BITSET_MAX_BYTE)) {
@@ -493,6 +494,7 @@ do_cs_bitset:
 				pc += bitset_size;
 				break;
 			}
+			__pragma_GCC_diagnostic_pop_ignored(Wtype_limits)
 			__builtin_unreachable();
 		}
 	}
