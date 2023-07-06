@@ -1,7 +1,7 @@
 /*[[[magic
 options["COMPILE.language"] = "c";
 local gcc_opt = options.setdefault("GCC.options", []);
-gcc_opt.removeif([](x) -> x.startswith("-O"));
+gcc_opt.removeif(x -> x.startswith("-O"));
 // Actually: want to optimize to minimize stack memory usage, but this is the next-best thing
 gcc_opt.append("-Os");
 ]]]*/
