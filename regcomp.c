@@ -1291,7 +1291,8 @@ err_nomem:
 #define __LIBCCALL /* nothing */
 #endif /* !__LIBCCALL */
 
-PRIVATE int __LIBCCALL compare_char32_t(void const *a, void const *b) {
+PRIVATE WUNUSED NONNULL((1, 2)) int
+NOTHROW_NCX(__LIBCCALL compare_char32_t)(void const *a, void const *b) {
 	char32_t lhs = *(char32_t const *)a;
 	char32_t rhs = *(char32_t const *)b;
 	if (lhs < rhs)
