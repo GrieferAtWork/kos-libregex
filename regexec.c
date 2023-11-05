@@ -2538,7 +2538,7 @@ NOTHROW_NCX(CC libre_exec_rsearch)(struct re_exec const *__restrict exec,
 	/* Do the search-loop */
 	re_interpreter_inptr_advance(&interp->ri_in, total_left);
 	used_inptr   = interp->ri_in;
-	match_offset = total_left;
+	match_offset = exec->rx_startoff + total_left;
 	for (;;) {
 		result = libre_interp_exec(interp);
 		if (result != -RE_NOMATCH) {
