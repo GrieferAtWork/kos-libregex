@@ -30,12 +30,12 @@
 #include <hybrid/compiler.h>
 
 #include <hybrid/align.h>
+#include <hybrid/bitset.h>
 #include <hybrid/minmax.h>
 #include <hybrid/overflow.h>
 #include <hybrid/unaligned.h>
 
 #include <kos/types.h>
-#include <sys/bitstring.h>
 
 #include <assert.h>
 #include <ctype.h>
@@ -1848,8 +1848,8 @@ NOTHROW_NCX(CC re_compiler_gen_RECS_RANGE)(struct re_compiler *__restrict self,
 
 struct re_charset {
 #define CHARCLASS_COUNT ((RECS_ISX_MAX - RECS_ISX_MIN) + 1)
-	bitstr_t      bit_decl(rc_bytes, 256);                   /* Raw bytes (and ASCII characters) */
-	bitstr_t      bit_decl(rc_charclasses, CHARCLASS_COUNT); /* Unicode character classes */
+	bitset_t   bitset_decl(rc_bytes, 256);                   /* Raw bytes (and ASCII characters) */
+	bitset_t   bitset_decl(rc_charclasses, CHARCLASS_COUNT); /* Unicode character classes */
 	struct unicode_charset rc_uchars;                        /* Extra unicode characters to add to the set. */
 	bool                   rc_negate;                        /* True if set is being negated */
 };
@@ -2048,7 +2048,7 @@ NOTHROW_NCX(CC re_charset_adduchar)(struct re_charset *__restrict self,
                                     char32_t ch) {
 	if (ch < 0x80) {
 		/* Simple case: ascii-only char */
-		bit_set(self->rc_bytes, (unsigned char)ch);
+		bitset_set(self->rc_bytes, (unsigned char)ch);
 	} else if (compiler->rec_parser.rep_syntax & RE_SYNTAX_ICASE) {
 		char32_t chars[4];
 		chars[0] = ch;
@@ -2082,7 +2082,7 @@ NOTHROW_NCX(CC re_compiler_parse_charset)(struct re_compiler *__restrict self,
 	/* Special case: if the character immediately after the open '[' is
 	 * either ']' or '-', it will  not have its usual special  meaning. */
 	if (*self->rec_parser.rep_pos == ']' || *self->rec_parser.rep_pos == '-') {
-		bit_set(result->rc_bytes, *self->rec_parser.rep_pos);
+		bitset_set(result->rc_bytes, *self->rec_parser.rep_pos);
 		++self->rec_parser.rep_pos;
 	}
 
@@ -2128,7 +2128,7 @@ loop_next:
 				self->rec_parser.rep_pos = csend;
 
 				/* Add the selected charset to the collection of ones that have been used. */
-				bit_set(result->rc_charclasses, cs_opcode - RECS_ISX_MIN);
+				bitset_set(result->rc_charclasses, cs_opcode - RECS_ISX_MIN);
 				goto loop_next;
 			}
 			if ((*self->rec_parser.rep_pos == '.') ||
@@ -2166,19 +2166,19 @@ loop_next:
 					switch (ch) {
 
 					case 'w':
-						bit_set(result->rc_charclasses, RECS_ISSYMCONT - RECS_ISX_MIN);
+						bitset_set(result->rc_charclasses, RECS_ISSYMCONT - RECS_ISX_MIN);
 						goto loop_next;
 
 					case 'n':
-						bit_set(result->rc_charclasses, RECS_ISLF - RECS_ISX_MIN);
+						bitset_set(result->rc_charclasses, RECS_ISLF - RECS_ISX_MIN);
 						goto loop_next;
 
 					case 's':
-						bit_set(result->rc_charclasses, RECS_ISSPACE - RECS_ISX_MIN);
+						bitset_set(result->rc_charclasses, RECS_ISSPACE - RECS_ISX_MIN);
 						goto loop_next;
 
 					case 'd':
-						bit_set(result->rc_charclasses, RECS_ISDIGIT - RECS_ISX_MIN);
+						bitset_set(result->rc_charclasses, RECS_ISDIGIT - RECS_ISX_MIN);
 						goto loop_next;
 
 					case 'u':
@@ -2335,9 +2335,9 @@ handle_bad_byte_range:
 						return RE_ERANGE;
 					goto loop_next; /* Ignore range. */
 				}
-				bit_nset(result->rc_bytes, ch, hibyte);
+				bitset_nset(result->rc_bytes, ch, hibyte);
 			} else {
-				bit_set(result->rc_bytes, ch);
+				bitset_set(result->rc_bytes, ch);
 			}
 			break;
 		}
@@ -2347,9 +2347,9 @@ done_loop:
 	/* In ASCII-mode, we're not allowed to encode char classes. Instead,
 	 * we have to essentially hard-code ctype attributes in the charset. */
 	if (IF_NO_UTF8(self->rec_parser.rep_syntax)) {
-		int csid_offset;
+		size_t csid_offset;
 		assert(unicode_charset_isempty(&result->rc_uchars));
-		bit_foreach (csid_offset, result->rc_charclasses, CHARCLASS_COUNT) {
+		bitset_foreach (csid_offset, result->rc_charclasses, CHARCLASS_COUNT) {
 			uint8_t ctype_c_trait_mask;
 			ctype_c_trait_mask = ctype_c_trait_masks[csid_offset];
 			if (ctype_c_trait_mask != 0) {
@@ -2358,43 +2358,43 @@ done_loop:
 do_copy_ctype_c_trait_mask:
 				for (i = 0; i < 128; ++i) { /* 128 instead of 256, because non-ASCII is always `0' */
 					if ((__ctype_C_flags[i] & ctype_c_trait_mask) != 0)
-						bit_set(result->rc_bytes, i);
+						bitset_set(result->rc_bytes, i);
 				}
 			} else {
 				/* Need some custom handling (s.a. 0-cases in `ctype_c_trait_masks') */
 				switch (csid_offset) {
 				case RECS_ISBLANK - RECS_ISX_MIN:
-					bit_set(result->rc_bytes, 0x09);
-					bit_set(result->rc_bytes, 0x20);
+					bitset_set(result->rc_bytes, 0x09);
+					bitset_set(result->rc_bytes, 0x20);
 					break;
 				case RECS_ISSYMSTRT - RECS_ISX_MIN:
-					bit_set(result->rc_bytes, 0x24); /* '$' */
-					bit_set(result->rc_bytes, 0x5f); /* '_' */
+					bitset_set(result->rc_bytes, 0x24); /* '$' */
+					bitset_set(result->rc_bytes, 0x5f); /* '_' */
 					ctype_c_trait_mask = CTYPE_C_FLAG_ALPHA;
 					goto do_copy_ctype_c_trait_mask;
 				case RECS_ISSYMCONT - RECS_ISX_MIN:
-					bit_set(result->rc_bytes, 0x24); /* '$' */
-					bit_set(result->rc_bytes, 0x5f); /* '_' */
+					bitset_set(result->rc_bytes, 0x24); /* '$' */
+					bitset_set(result->rc_bytes, 0x5f); /* '_' */
 					ctype_c_trait_mask = CTYPE_C_FLAG_ALNUM;
 					goto do_copy_ctype_c_trait_mask;
 				case RECS_ISEMPTY - RECS_ISX_MIN:
-					bit_set(result->rc_bytes, 0x20); /* ' ' */
+					bitset_set(result->rc_bytes, 0x20); /* ' ' */
 					ATTR_FALLTHROUGH
 				case RECS_ISTAB - RECS_ISX_MIN:
-					bit_set(result->rc_bytes, 0x09); /* '\t' */
-					bit_set(result->rc_bytes, 0x0b); /* VT */
-					bit_set(result->rc_bytes, 0x0c); /* FF */
+					bitset_set(result->rc_bytes, 0x09); /* '\t' */
+					bitset_set(result->rc_bytes, 0x0b); /* VT */
+					bitset_set(result->rc_bytes, 0x0c); /* FF */
 					break;
 				case RECS_ISWHITE - RECS_ISX_MIN:
-					bit_set(result->rc_bytes, 0x20); /* ' ' */
+					bitset_set(result->rc_bytes, 0x20); /* ' ' */
 					break;
 				case RECS_ISLF - RECS_ISX_MIN:
-					bit_set(result->rc_bytes, 0x0a); /* '\n' */
-					bit_set(result->rc_bytes, 0x0d); /* '\r' */
+					bitset_set(result->rc_bytes, 0x0a); /* '\n' */
+					bitset_set(result->rc_bytes, 0x0d); /* '\r' */
 					break;
 				case RECS_ISHEX - RECS_ISX_MIN:
-					bit_nset(result->rc_bytes, 0x41, 0x46); /* 'A-F' */
-					bit_nset(result->rc_bytes, 0x61, 0x66); /* 'a-f' */
+					bitset_nset(result->rc_bytes, 0x41, 0x46); /* 'A-F' */
+					bitset_nset(result->rc_bytes, 0x61, 0x66); /* 'a-f' */
 					break;
 				default: __builtin_unreachable();
 				}
@@ -2406,9 +2406,9 @@ do_copy_ctype_c_trait_mask:
 	if (IF_ICASE(self->rec_parser.rep_syntax)) {
 		byte_t b;
 		for (b = 0x41; b <= 0x5a; ++b) {
-			if (bit_test(result->rc_bytes, b) || bit_test(result->rc_bytes, b | 0x20)) {
-				bit_set(result->rc_bytes, b);
-				bit_set(result->rc_bytes, b | 0x20);
+			if (bitset_test(result->rc_bytes, b) || bitset_test(result->rc_bytes, b | 0x20)) {
+				bitset_set(result->rc_bytes, b);
+				bitset_set(result->rc_bytes, b | 0x20);
 			}
 		}
 	}
@@ -2417,10 +2417,10 @@ do_copy_ctype_c_trait_mask:
 	if (IF_HAT_LISTS_NOT_NEWLINE(self->rec_parser.rep_syntax) &&
 	    (result->rc_negate)) {
 		if (IF_NO_UTF8(self->rec_parser.rep_syntax)) {
-			bit_set(result->rc_bytes, 0x0a); /* '\n' */
-			bit_set(result->rc_bytes, 0x0d); /* '\r' */
+			bitset_set(result->rc_bytes, 0x0a); /* '\n' */
+			bitset_set(result->rc_bytes, 0x0d); /* '\r' */
 		} else {
-			bit_set(result->rc_charclasses, RECS_ISLF - RECS_ISX_MIN);
+			bitset_set(result->rc_charclasses, RECS_ISLF - RECS_ISX_MIN);
 		}
 	}
 
@@ -2458,7 +2458,7 @@ NOTHROW_NCX(CC re_compiler_compile_charset)(struct re_compiler *__restrict self)
 	if (cs.rc_negate) {
 		if (IF_NO_UTF8(self->rec_parser.rep_syntax)) {
 			self->rec_cbase[start_offset] = REOP_CS_BYTE;
-			bit_flipall(cs.rc_bytes, 256);
+			bitset_flipall(cs.rc_bytes, 256);
 		} else {
 			self->rec_cbase[start_offset] = REOP_NCS_UTF8;
 			goto check_bytes_only_ascii;
@@ -2468,7 +2468,7 @@ NOTHROW_NCX(CC re_compiler_compile_charset)(struct re_compiler *__restrict self)
 			self->rec_cbase[start_offset] = REOP_CS_BYTE;
 		} else if ((self->rec_cpos == self->rec_cbase + start_offset + 1) &&
 		           (cs.rc_uchars.ucs_count == 0) &&
-		           (bit_noneset(cs.rc_charclasses, CHARCLASS_COUNT))) {
+		           !bitset_anyset(cs.rc_charclasses, CHARCLASS_COUNT)) {
 			/* Special case: even  when  compiling  in  utf-8-mode,  we  can still
 			 *               encode char classes in their more efficient byte-mode
 			 *               encoding,  so-long  as  the pattern  can  never match
@@ -2484,15 +2484,15 @@ check_bytes_only_ascii:
 			 *
 			 * To keep things from escalating, we only allow ascii-chars
 			 * being bitset-matched when encoding a utf-8 based charset. */
-			if (bit_nanyset(cs.rc_bytes, 0x80, 0xff))
+			if (bitset_nanyset(cs.rc_bytes, 0x80, 0xff))
 				goto err_EILLSET;
 		}
 	}
 
 	if (!(IF_NO_UTF8(self->rec_parser.rep_syntax))) {
 		/* Encode `cs.rc_charclasses' (if in utf-8 mode) */
-		int csid_offset;
-		bit_foreach (csid_offset, cs.rc_charclasses, CHARCLASS_COUNT) {
+		size_t csid_offset;
+		bitset_foreach (csid_offset, cs.rc_charclasses, CHARCLASS_COUNT) {
 			byte_t cs_opcode = (byte_t)(RECS_ISX_MIN + csid_offset);
 			if (!re_compiler_putc(self, cs_opcode))
 				goto err_nomem;
@@ -2508,7 +2508,7 @@ check_bytes_only_ascii:
 			 *               no  char-sets, and is  short enough to fit,
 			 *               then encode as `REOP_[N]CONTAINS_UTF8' */
 			if ((self->rec_cpos == self->rec_cbase + start_offset + 1)) {
-				unsigned int nbytes = bit_popcount(cs.rc_bytes, 256);
+				size_t nbytes = bitset_popcount(cs.rc_bytes, 256);
 				if ((nbytes <= REOP_CONTAINS_UTF8_MAX_ASCII_COUNT) &&
 				    ((count + nbytes) <= 0xff)) {
 					/* Yes: we can use `REOP_[N]CONTAINS_UTF8'! */
@@ -2520,7 +2520,7 @@ check_bytes_only_ascii:
 						/* Include ASCII characters in the CONTAINS-match. */
 						byte_t b;
 						for (b = 0; b < 0x80; ++b) {
-							if (bit_test(cs.rc_bytes, b)) {
+							if (bitset_test(cs.rc_bytes, b)) {
 								if (!re_compiler_putc(self, b))
 									goto err_nomem;
 							}
@@ -2578,7 +2578,7 @@ check_bytes_only_ascii:
 		for (b = 0;; ++b) {
 			if (b >= 256)
 				goto put_terminator; /* Empty bytes? -- ok... (but this won't ever match anything) */
-			if (bit_test(cs.rc_bytes, b))
+			if (bitset_test(cs.rc_bytes, b))
 				break;
 		}
 		/* Found the first matching character.
@@ -2586,11 +2586,11 @@ check_bytes_only_ascii:
 		popcount = 1;
 		range_lo = (byte_t)b;
 		range_hi = (byte_t)b;
-		while (range_hi < (256 - 1) && bit_test(cs.rc_bytes, range_hi + 1)) {
+		while (range_hi < (256 - 1) && bitset_test(cs.rc_bytes, range_hi + 1)) {
 			++range_hi;
 			++popcount;
 		}
-		if (range_hi >= 0xff || !bit_nanyset(cs.rc_bytes, range_hi + 1, 0xff)) {
+		if (range_hi >= 0xff || !bitset_nanyset(cs.rc_bytes, range_hi + 1, 0xff)) {
 			/* We're dealing with a singular, continuous range [range_lo,range_hi] */
 			unsigned int rangelen = (range_hi - range_lo) + 1;
 			assert(rangelen >= 1);
@@ -2627,12 +2627,12 @@ check_bytes_only_ascii:
 		}
 		if (popcount == 1) {
 			/* Check if we can find another matching byte somewhere `> b' */
-			b += 2;                           /* b+1 was already checked, so start at b += 2 */
-			while (!bit_test(cs.rc_bytes, b)) /* We know that there must be more set bits, because `!bit_nanyset' */
+			b += 2;                              /* b+1 was already checked, so start at b += 2 */
+			while (!bitset_test(cs.rc_bytes, b)) /* We know that there must be more set bits, because `!bitset_nanyset' */
 				++b;
 			/* At this point, we know that `range_lo' and `b' are part of the set.
 			 * -> If these are the only 2, then we can generate `REOP_[N]BYTE2'. */
-			if (b >= 0xff || !bit_nanyset(cs.rc_bytes, b + 1, 0xff)) {
+			if (b >= 0xff || !bitset_nanyset(cs.rc_bytes, b + 1, 0xff)) {
 				self->rec_cpos[-1] = cs.rc_negate ? (byte_t)REOP_NBYTE2
 				                                  : (byte_t)REOP_BYTE2;
 				if (!re_compiler_putc(self, range_lo))
@@ -2645,7 +2645,7 @@ check_bytes_only_ascii:
 	}
 
 	/* Check if there are even any bytes _to_ encode. */
-	if unlikely(!bit_anyset(cs.rc_bytes, 256)) {
+	if unlikely(!bitset_anyset(cs.rc_bytes, 256)) {
 		/* No byte-matches specified -> don't encode a bitset.
 		 * - This can easily happen for (e.g.) "[[:alpha:]]" in utf-8 mode,
 		 *   where it  encodes  to  `REOP_CS_UTF8, RECS_ISALPHA, RECS_DONE'
@@ -2658,8 +2658,8 @@ check_bytes_only_ascii:
 		byte_t cs_opcode;
 		byte_t minset, maxset, base, num_bytes;
 		uint16_t num_bits;
-		minset    = (byte_t)(0x00 + bit_clz(cs.rc_bytes));
-		maxset    = (byte_t)(0xff - bit_ctz(cs.rc_bytes, 256));
+		minset    = (byte_t)(0x00 + bitset_clz(cs.rc_bytes));
+		maxset    = (byte_t)(0xff - bitset_ctz(cs.rc_bytes, 256));
 		base      = RECS_BITSET_BASEFOR(minset);
 		num_bits  = (maxset + 1) - base;
 		num_bytes = (byte_t)CEILDIV(num_bits, 8);
