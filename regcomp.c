@@ -2335,7 +2335,7 @@ handle_bad_byte_range:
 						return RE_ERANGE;
 					goto loop_next; /* Ignore range. */
 				}
-				bitset_nset(result->rc_bytes, ch, hibyte);
+				bitset_nset(result->rc_bytes, ch, hibyte + 1);
 			} else {
 				bitset_set(result->rc_bytes, ch);
 			}
@@ -2393,8 +2393,8 @@ do_copy_ctype_c_trait_mask:
 					bitset_set(result->rc_bytes, 0x0d); /* '\r' */
 					break;
 				case RECS_ISHEX - RECS_ISX_MIN:
-					bitset_nset(result->rc_bytes, 0x41, 0x46); /* 'A-F' */
-					bitset_nset(result->rc_bytes, 0x61, 0x66); /* 'a-f' */
+					bitset_nset(result->rc_bytes, 0x41, 0x46 + 1); /* 'A-F' */
+					bitset_nset(result->rc_bytes, 0x61, 0x66 + 1); /* 'a-f' */
 					break;
 				default: __builtin_unreachable();
 				}
@@ -2484,7 +2484,7 @@ check_bytes_only_ascii:
 			 *
 			 * To keep things from escalating, we only allow ascii-chars
 			 * being bitset-matched when encoding a utf-8 based charset. */
-			if (bitset_nanyset(cs.rc_bytes, 0x80, 0xff))
+			if (bitset_nanyset(cs.rc_bytes, 0x80, 0xff + 1))
 				goto err_EILLSET;
 		}
 	}
@@ -2590,7 +2590,7 @@ check_bytes_only_ascii:
 			++range_hi;
 			++popcount;
 		}
-		if (range_hi >= 0xff || !bitset_nanyset(cs.rc_bytes, range_hi + 1, 0xff)) {
+		if (range_hi >= 0xff || !bitset_nanyset(cs.rc_bytes, range_hi + 1, 0xff + 1)) {
 			/* We're dealing with a singular, continuous range [range_lo,range_hi] */
 			unsigned int rangelen = (range_hi - range_lo) + 1;
 			assert(rangelen >= 1);
@@ -2632,7 +2632,7 @@ check_bytes_only_ascii:
 				++b;
 			/* At this point, we know that `range_lo' and `b' are part of the set.
 			 * -> If these are the only 2, then we can generate `REOP_[N]BYTE2'. */
-			if (b >= 0xff || !bitset_nanyset(cs.rc_bytes, b + 1, 0xff)) {
+			if (b >= 0xff || !bitset_nanyset(cs.rc_bytes, b + 1, 0xff + 1)) {
 				self->rec_cpos[-1] = cs.rc_negate ? (byte_t)REOP_NBYTE2
 				                                  : (byte_t)REOP_BYTE2;
 				if (!re_compiler_putc(self, range_lo))

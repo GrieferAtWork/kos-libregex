@@ -430,13 +430,13 @@ NOTHROW_NCX(CC cs_gather_matching_bytes)(bitset_t matchend_bytes[],
 				hi = unicode_readutf8((char const **)&pc);
 				if (hi >= 0x80) {
 					/* Match all utf-8 lead bytes */
-					bitset_nset(matchend_bytes, 0xc0, 0xff);
+					bitset_nset(matchend_bytes, 0xc0, 0xff + 1);
 					hi = 0x7f;
 				}
 				if (lo < 0x80)
-					bitset_nset(matchend_bytes, lo, hi);
+					bitset_nset(matchend_bytes, lo, hi + 1);
 			} else {
-				bitset_nset(matchend_bytes, pc[0], pc[1]);
+				bitset_nset(matchend_bytes, pc[0], pc[1] + 1);
 				pc += 2;
 			}
 			break;
@@ -707,7 +707,7 @@ again:
 				/* Flip the meaning of matched bytes. */
 				bitset_flipall(matchend_bytes, 256);
 				/* Always match all unicode bytes, since 1 lead byte can match many actual characters. */
-				bitset_nset(matchend_bytes, 0xc0, 0xff);
+				bitset_nset(matchend_bytes, 0xc0, 0xff + 1);
 				break;
 			default: __builtin_unreachable();
 			}
