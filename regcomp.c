@@ -2658,8 +2658,8 @@ check_bytes_only_ascii:
 		byte_t cs_opcode;
 		byte_t minset, maxset, base, num_bytes;
 		uint16_t num_bits;
-		minset    = (byte_t)(0x00 + bitset_clz(cs.rc_bytes));
-		maxset    = (byte_t)(0xff - bitset_ctz(cs.rc_bytes, 256));
+		minset    = (byte_t)(0x00 + bitset_rawctz(cs.rc_bytes));
+		maxset    = (byte_t)(0xff - bitset_rawclz(cs.rc_bytes, 256));
 		base      = RECS_BITSET_BASEFOR(minset);
 		num_bits  = (maxset + 1) - base;
 		num_bytes = (byte_t)CEILDIV(num_bits, 8);
