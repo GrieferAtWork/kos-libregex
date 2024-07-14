@@ -784,7 +784,7 @@ int2_after_exact_data:
 }
 
 
-/* Check if input exists that can match both code at `pc1' and `pc2'
+/* Check if input exists that can match code at both `pc1' and `pc2'
  * @param: pc_end: PC for the (sub-)expression end address. We're allowed  to
  *                 assume that when either `pc1'  or `pc2' hits this  address
  *                 (but not at the same time), on all possible branches, then

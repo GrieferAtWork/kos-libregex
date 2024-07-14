@@ -731,7 +731,7 @@ done_in_init:
 			(self)->ri_pmatch = (re_regmatch_t *)alloca(_ngrp * sizeof(re_regmatch_t));   \
 		}                                                                                 \
 		/* Set all offsets to RE_REGOFF_UNSET (if they're written back at the end,        \
-		 * of if the code being executed expects unset groups to be marked properly) */   \
+		 * or if the code being executed expects unset groups to be marked properly) */   \
 		if ((exec)->rx_nmatch || ((exec)->rx_code->rc_flags & RE_CODE_FLAG_NEEDGROUPS)) { \
 			memsetc((self)->ri_pmatch, RE_REGOFF_UNSET,                                   \
 			        _ngrp * 2, sizeof(re_regoff_t));                                      \

@@ -54,8 +54,8 @@ NOTHROW_NCX(CC libre_parser_yield)(struct re_parser *__restrict self);
  * - rec_parser.rec_estart  == <undefined>
  * - rec_parser.rec_cpos    == <undefined>
  * - rec_parser.rec_cend    == <code-end-pointer (1 past the `REOP_MATCHED[_PERFECT]' opcode)>
- * - rec_parser.rec_ngrp    == <greaters-referenced-group + 1>
- * - rec_parser.rec_nvar    == <greaters-referenced-var + 1>
+ * - rec_parser.rec_ngrp    == <greatest-referenced-group + 1>
+ * - rec_parser.rec_nvar    == <greatest-referenced-var + 1>
  * - rec_parser.rec_grpinfo == <undefined>
  * @return: RE_NOERROR:  Success
  * @return: RE_BADPAT:   General pattern syntax error.
@@ -72,7 +72,7 @@ NOTHROW_NCX(CC libre_parser_yield)(struct re_parser *__restrict self);
  * @return: RE_BADRPT:   Nothing is preceding '+', '*', '?' or '{'.
  * @return: RE_EEND:     Unexpected end of pattern.
  * @return: RE_ESIZE:    Compiled pattern bigger than 2^16 bytes.
- * @return: RE_ERPAREN:  Unmatched ')' (only when `RE_SYNTAX_UNMATCHED_RIGHT_PAREN_ORD' was set)
+ * @return: RE_ERPAREN:  Unmatched ')' (only when `RE_SYNTAX_UNMATCHED_RIGHT_PAREN_ORD' wasn't set)
  * @return: RE_EILLSEQ:  Illegal unicode character (when `RE_NO_UTF8' wasn't set)
  * @return: RE_EILLSET:  Tried to combine raw bytes with unicode characters in charsets (e.g. "[Ä\xC3]") */
 INTDEF WUNUSED NONNULL((1)) re_errno_t
