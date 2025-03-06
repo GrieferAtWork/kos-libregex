@@ -141,6 +141,9 @@ struct re_interpreter {
 	re_regmatch_t                  *ri_bmatch_g;  /* [1..ri_exec->rx_code->rc_ngrps]
 	                                               * [valid_if(best_match_isvalid() && ri_exec->rx_nmatch != 0)]
 	                                               * Group match buffer for `ri_bmatch' */
+	byte_t                          ri_flags;     /* Execution flags (set of `RE_INTERPRETER_F_*') */
+#define RE_INTERPRETER_F_NORMAL     0x00          /* NORMAL flags */
+#define RE_INTERPRETER_F_RSGRPS     0x01          /* ResetGRouPS (on fail) -- must be set when wanting to re-use the interpreter in searches */
 	COMPILER_FLEXIBLE_ARRAY(byte_t, ri_vars);     /* [ri_exec->rx_code->rc_nvars] Space for variables used by code. */
 };
 
@@ -713,12 +716,13 @@ done_in_init:
 	self->ri_onfailv = NULL;
 	self->ri_onfailc = 0;
 	self->ri_onfaila = 0;
+	self->ri_flags   = RE_INTERPRETER_F_NORMAL;
 	DBG_memset(self->ri_vars, 0xcc, exec->rx_code->rc_nvars * sizeof(byte_t));
 	return RE_NOERROR;
 }
 
 /* Initialize the match-buffer of `self' */
-#define re_interpreter_init_match(self, exec)                                             \
+#define re_interpreter_init_match(self, exec, for_search)                                 \
 	do {                                                                                  \
 		uint16_t _ngrp;                                                                   \
 		(self)->ri_pmatch = (exec)->rx_pmatch;                                            \
@@ -735,6 +739,10 @@ done_in_init:
 		if ((exec)->rx_nmatch || ((exec)->rx_code->rc_flags & RE_CODE_FLAG_NEEDGROUPS)) { \
 			memsetc((self)->ri_pmatch, RE_REGOFF_UNSET,                                   \
 			        _ngrp * 2, sizeof(re_regoff_t));                                      \
+			if (for_search) {                                                             \
+				/* Interpreter is used for searching and needs groups (reset on fail) */  \
+				(self)->ri_flags |= RE_INTERPRETER_F_RSGRPS;                              \
+			}                                                                             \
 		}                                                                                 \
 	}	__WHILE0
 
@@ -2285,6 +2293,12 @@ onfail:
 			/* If there was a match, then return it. */
 			if (best_match_isvalid())
 				goto return_best_match;
+			if (self->ri_flags & RE_INTERPRETER_F_RSGRPS) {
+				/* Regular match fail while doing a search -> must reset groups. */
+				memsetc(self->ri_pmatch, RE_REGOFF_UNSET,
+				        self->ri_exec->rx_code->rc_ngrps * 2,
+				        sizeof(re_regoff_t));
+			}
 			return -RE_NOMATCH;
 		}
 		item = &self->ri_onfailv[--self->ri_onfailc];
@@ -2357,7 +2371,7 @@ NOTHROW_NCX(CC libre_exec_match)(struct re_exec const *__restrict exec) {
 	error  = re_interpreter_init(interp, exec);
 	if unlikely(error != 0)
 		goto err;
-	re_interpreter_init_match(interp, exec);
+	re_interpreter_init_match(interp, exec, false);
 
 	/* Execute */
 	result = libre_interp_exec(interp);
@@ -2407,7 +2421,7 @@ NOTHROW_NCX(CC libre_exec_search)(struct re_exec const *__restrict exec,
 	error  = re_interpreter_init(interp, exec);
 	if unlikely(error != 0)
 		goto err;
-	re_interpreter_init_match(interp, exec);
+	re_interpreter_init_match(interp, exec, true);
 
 	/* Do the search-loop */
 	used_inptr   = interp->ri_in;
@@ -2465,7 +2479,7 @@ NOTHROW_NCX(CC libre_exec_search_noepsilon)(struct re_exec const *__restrict exe
 	error  = re_interpreter_init(interp, exec);
 	if unlikely(error != 0)
 		goto err;
-	re_interpreter_init_match(interp, exec);
+	re_interpreter_init_match(interp, exec, true);
 
 	/* Do the search-loop */
 	used_inptr   = interp->ri_in;
@@ -2533,7 +2547,7 @@ NOTHROW_NCX(CC libre_exec_rsearch)(struct re_exec const *__restrict exec,
 	error  = re_interpreter_init(interp, exec);
 	if unlikely(error != 0)
 		goto err;
-	re_interpreter_init_match(interp, exec);
+	re_interpreter_init_match(interp, exec, true);
 
 	/* Do the search-loop */
 	re_interpreter_inptr_advance(&interp->ri_in, total_left);
