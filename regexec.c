@@ -72,9 +72,9 @@ DECL_BEGIN
 #define ascii_islf(ch) ((ch) == '\r' || (ch) == '\n')
 
 #if !defined(NDEBUG) && !defined(NDEBUG_FINI)
-#define DBG_memset memset
+#define DBG_memset(p, c, n) memset(p, c, n)
 #else /* !NDEBUG && !NDEBUG_FINI */
-#define DBG_memset(...) (void)0
+#define DBG_memset(p, c, n) (void)0
 #endif /* NDEBUG || NDEBUG_FINI */
 
 #define delta16_get(p) ((int16_t)UNALIGNED_GET16(p))
